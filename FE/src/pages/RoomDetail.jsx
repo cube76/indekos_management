@@ -1,0 +1,672 @@
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import api, { API_BASE_URL } from '../services/api';
+import { formatDate, formatCurrency, formatInputPrice, parseInputPrice } from '../utils/format';
+import { generateReceipt, generateInvoice } from '../utils/receipt';
+import Modal from '../components/Modal';
+
+function RoomDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [room, setRoom] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Modal State
+  const [modal, setModal] = useState({ isOpen: false, title: '', type: '', data: null });
+  const [successModal, setSuccessModal] = useState({ isOpen: false, message: '' });
+
+  // Payment Form State
+  const [amount, setAmount] = useState('');
+  const [periodStart, setPeriodStart] = useState('');
+  const [periodEnd, setPeriodEnd] = useState('');
+  const [paymentDate, setPaymentDate] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' or 'transfer'
+  const [bankName, setBankName] = useState(''); // 'BCA', 'BNI', 'Mandiri'
+  
+  // Tenant Form State
+  const [tenantName, setTenantName] = useState('');
+  const [tenantId, setTenantId] = useState('');
+  const [tenantPhone, setTenantPhone] = useState('');
+  const [occupiedAt, setOccupiedAt] = useState('');
+
+  // Pagination State for History
+  const [history, setHistory] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Responsive Pagination
+  const [maxVisiblePages, setMaxVisiblePages] = useState(5);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setMaxVisiblePages(window.innerWidth <= 480 ? 3 : 5);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    fetchRoomDetails();
+  }, [id]);
+
+  useEffect(() => {
+    fetchHistory();
+  }, [id, page]);
+
+  const fetchRoomDetails = async () => {
+    try {
+      const res = await api.get(`/rooms/${id}`);
+      setRoom(res.data);
+      
+      // Reset forms on refresh
+      setShowPaymentForm(false);
+      setShowTenantForm(false);
+    } catch (error) {
+      console.error('Failed to fetch room:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      const res = await api.get(`/payments/${id}`, { params: { page, limit: 10 }});
+      if (res.data.meta) {
+          setHistory(res.data.data);
+          setTotalPages(res.data.meta.totalPages);
+      } else {
+          setHistory(res.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch history:', error);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+  };
+
+  // Helper to Calculate Next Period
+  const getNextPeriod = () => {
+    if (!room) return { start: '', end: '' };
+    
+    // nextDueDate comes from backend (latest_payment_end or occupied_at)
+    let start = new Date(room.nextDueDate || new Date());
+    
+    // If no nextDueDate (shouldn't happen for filled), default to today
+    if (isNaN(start.getTime())) start = new Date();
+
+    // End is +1 month from Start
+    const end = new Date(start);
+    end.setMonth(end.getMonth() + 1);
+    
+    // Check for month overflow (e.g. Jan 30 -> Mar 2)
+    if (end.getDate() !== start.getDate()) {
+        end.setDate(0); // Snap to last day of previous month (Feb 28/29)
+    }
+
+    return {
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0]
+    };
+  };
+
+  // --- Modal Openers ---
+
+  const openPaymentModal = () => {
+    const { start, end } = getNextPeriod();
+    setAmount(room.price || '');
+    setPeriodStart(start);
+    setPeriodEnd(end);
+    setPaymentDate(new Date().toISOString().split('T')[0]); // Default to Today
+    setPaymentMethod('cash');
+    setBankName('');
+    setModal({
+        isOpen: true,
+        title: 'Record Payment',
+        type: 'PAYMENT_FORM',
+        data: null
+    });
+  };
+
+  const openTenantModal = () => {
+      // Reset fields
+      setTenantName('');
+      setTenantId('');
+      setTenantPhone('');
+      setOccupiedAt('');
+      
+      setModal({
+        isOpen: true,
+        title: 'Assign New Tenant',
+        type: 'TENANT_FORM',
+        data: null
+      });
+  };
+
+  const triggerMoveOut = () => {
+    setModal({
+        isOpen: true,
+        title: isSevereOverdue() ? 'Confirm Forced Move Out' : 'Confirm Move Out',
+        type: 'MOVEOUT',
+        data: null
+    });
+  };
+
+  const handleGenerateInvoice = () => {
+    const { start, end } = getNextPeriod();
+    const predictedPayment = {
+        id: 'DRAFT', // No ID yet
+        amount: room.price,
+        tenant_name: room.tenant_name,
+        payment_date: new Date(), // Invoice Date = Today
+        period_start: start,
+        period_end: end
+    };
+    generateInvoice(predictedPayment, room);
+  };
+
+  // --- Central Action Handler ---
+  const handleConfirmAction = async () => {
+    if (modal.type === 'TENANT_FORM') {
+         // Validate Required Fields
+        if (!tenantName.trim() || !tenantPhone.trim() || !tenantId.trim() || !occupiedAt) {
+            alert('Please fill in all tenant details.');
+            return;
+        }
+
+        // Validate Date
+        const moveIn = new Date(occupiedAt);
+        const today = new Date();
+        const maxDate = new Date();
+        maxDate.setMonth(maxDate.getMonth() + 2);
+        const minDate = new Date(today.getFullYear(), today.getMonth(), 1); 
+        minDate.setHours(0, 0, 0, 0); 
+        moveIn.setHours(0, 0, 0, 0);
+
+        if (moveIn > maxDate) {
+            alert('Move-in date cannot be more than 2 months in the future.');
+            return;
+        }
+        if (moveIn < minDate) {
+            alert('Cannot assign move-in date for a past month.');
+            return;
+        }
+    }
+
+    setIsSubmitting(true);
+    try {
+        if (modal.type === 'PAYMENT_FORM') {
+            if (paymentMethod === 'transfer' && !bankName) {
+                alert('Please select a Bank Name for the transfer.');
+                setIsSubmitting(false);
+                return;
+            }
+
+            await api.post(`/payments/${id}`, { 
+                amount, 
+                period_start: periodStart, 
+                period_end: periodEnd,
+                payment_date: paymentDate,
+                payment_method: paymentMethod,
+                bank_name: paymentMethod === 'transfer' ? bankName : null
+            });
+            setSuccessModal({ isOpen: true, message: 'Payment recorded successfully!' });
+            fetchHistory();
+        } 
+        else if (modal.type === 'TENANT_FORM') {
+            await api.post(`/rooms/${id}/tenant`, { tenant_name: tenantName, tenant_id_number: tenantId, tenant_phone: tenantPhone, occupied_at: occupiedAt });
+            setSuccessModal({ isOpen: true, message: 'Tenant assigned successfully! First month payment recorded.' });
+            fetchHistory();
+        } 
+        else if (modal.type === 'MOVEOUT') {
+            await api.post(`/rooms/${id}/moveout`);
+            setSuccessModal({ isOpen: true, message: 'Tenant moved out successfully.' });
+        }
+        
+        // Refresh Data
+        await fetchRoomDetails();
+        
+        // Cleanup UI
+        setModal({ isOpen: false, title: '', type: '', data: null });
+
+    } catch (error) {
+        console.error(error);
+        alert('Action failed: ' + (error.response?.data || error.message));
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
+  // Check for Severe Overdue (> 1 Month)
+  const isSevereOverdue = () => {
+      if (!room.nextDueDate) return false;
+      const due = new Date(room.nextDueDate);
+      const now = new Date();
+      
+      // Calculate 1 month after due date
+      const threshold = new Date(due);
+      threshold.setMonth(threshold.getMonth() + 1);
+      
+      return now > threshold;
+  };
+
+  // Logic to show Payment Button
+  const canShowPaymentButton = () => {
+    if (room.status !== 'filled') return false;
+    
+    // STRICT RULE: If overdue > 1 month, disable payment (Must Move Out)
+    if (isSevereOverdue()) return false;
+
+    if (room.isOverdue) return true;
+
+    // Show if Due Date is approaching (e.g., within 7 days)
+    if (room.nextDueDate) {
+      const today = new Date();
+      const due = new Date(room.nextDueDate);
+      
+      // Calculate difference in milliseconds
+      const diffTime = due - today;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      // Show if due within 7 days (or passed)
+      return diffDays <= 7; 
+    }
+    return true; 
+  };
+
+  if (loading) return <div className="container">Loading...</div>;
+  if (!room) return <div className="container">Room not found</div>;
+
+
+  // Check if Due Soon (within 7 days) but not overdue
+  const isDueSoon = () => {
+      if (!room.nextDueDate || room.isOverdue) return false;
+      const today = new Date();
+      const due = new Date(room.nextDueDate);
+      const diffTime = due - today;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays <= 7 && diffDays >= 0;
+  };
+
+  return (
+    <div className="container">
+      <button onClick={() => navigate('/dashboard')} className="btn btn-secondary" style={{ marginBottom: '1rem' }}>
+        &larr; Back to Dashboard
+      </button>
+
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+             <h1 style={{ marginBottom: 0, fontSize: '1.8rem' }}>Room {room.room_number}</h1>
+             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
+                 {room.building_logo && (
+                     <img 
+                      src={`${API_BASE_URL}${room.building_logo}`} 
+                      alt="logo" 
+                      style={{ width: '24px', height: '24px', objectFit: 'contain' }} 
+                     />
+                 )}
+                 <span>{room.building_name}</span>
+             </div>
+          </div>
+          <div style={{display:'flex', gap:'0.5rem'}}>
+             <span className={`status-badge ${room.status === 'filled' ? 'status-filled' : 'status-empty'}`}>
+                {room.status.toUpperCase()}
+            </span>
+            {room.status === 'filled' && (
+               <>
+               <span className={`status-badge ${
+                   room.isOverdue ? 'status-overdue' : 
+                   isDueSoon() ? 'status-warning' : 'status-paid'
+               }`}>
+                 {room.isOverdue ? 'OVERDUE' : isDueSoon() ? 'DUE SOON' : 'PAID'}
+               </span>
+               
+
+               </>
+            )}
+          </div>
+        </div>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', marginTop: '1rem' }}>
+          <div>
+            <h3>Room Details</h3>
+            <p><strong>Price:</strong> {formatCurrency(room.price)}</p>
+            {room.status === 'filled' ? (
+              <div style={{ 
+                backgroundColor: '#f0f9ff', 
+                border: '1px solid #bae6fd', 
+                padding: '1rem', 
+                borderRadius: '8px',
+                marginTop: '0.5rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', color: '#0369a1' }}>
+                    <strong>Current Tenant</strong>
+                </div>
+                <p style={{ margin: '0.2rem 0', fontSize: '1.1rem', fontWeight: 'bold' }}>{room.tenant_name}</p>
+                <p style={{ margin: '0.2rem 0' }}>📞 {room.tenant_phone}</p>
+                <p style={{ margin: '0.2rem 0' }}>🆔 {room.tenant_id_number}</p>
+                <hr style={{ borderColor: '#bae6fd', margin: '0.5rem 0' }}/>
+                <p style={{ margin: '0.2rem 0', fontSize: '0.9rem' }}>Occupied Since: {formatDate(room.occupied_at)}</p>
+                <p style={{ margin: '0.2rem 0', fontSize: '0.9rem' }}>Next Due: {formatDate(room.nextDueDate)}</p>
+              </div>
+            ) : (
+                <p><em>Room is currently empty.</em></p>
+            )}
+          </div>
+
+          <div>
+            <h3>Actions</h3>
+            {room.status === 'filled' ? (
+                <>
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                    {canShowPaymentButton() && (
+                        <button onClick={openPaymentModal} className="btn btn-primary" style={{ flex: '1 1 auto' }}>
+                             Record Payment
+                        </button>
+                    )}
+                    {(isDueSoon() || room.isOverdue) && (
+                    <button 
+                        onClick={handleGenerateInvoice} 
+                        className="btn btn-secondary" 
+                        style={{ flex: '1 1 auto', backgroundColor: '#64748b', borderColor: '#64748b' }}
+                    >
+                        📄 Invoice
+                    </button>
+                    )}
+                    <button onClick={triggerMoveOut} className="btn btn-danger" style={{ flex: '1 1 auto' }}>
+                        {isSevereOverdue() ? '⚠️ Force Move Out (Kick Out)' : 'Move Out'}
+                    </button>
+                </div>
+                {isSevereOverdue() && (
+                    <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: '#fee2e2', color: '#dc2626', borderRadius: '4px', border: '1px solid #fca5a5' }}>
+                        <strong>Status Critical:</strong> Tenant is more than 1 month overdue. Payment is disabled. You must move them out.
+                    </div>
+                )}
+                </>
+            ) : (
+                <button onClick={openTenantModal} className="btn btn-primary">
+                    Assign Tenant
+                </button>
+            )}
+          </div>
+        </div>
+        
+      </div>
+
+      <div className="card">
+        <h3>Room Payment History</h3>
+        {loadingHistory ? (
+           <div className="spinner-container">
+             <div className="spinner"></div>
+           </div>
+        ) : history.length === 0 ? <p>No payments recorded.</p> : (
+          <>
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date Recorded</th>
+                  <th>Tenant</th>
+                  <th>Period</th>
+                  <th>Amount</th>
+                  <th>Method</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map(p => (
+                  <tr key={p.id}>
+                    <td>{formatDate(p.payment_date)}</td>
+                    <td>{p.tenant_name || '-'}</td>
+                    <td>{formatDate(p.period_start)} - {formatDate(p.period_end)}</td>
+                    <td>{formatCurrency(p.amount)}</td>
+                    <td>
+                        {p.payment_method === 'transfer' 
+                            ? `Transfer (${p.bank_name || '-'})` 
+                            : 'Cash'}
+                    </td>
+                    <td>
+                        <button 
+                            onClick={() => generateReceipt(p, room)}
+                            className="btn btn-secondary"
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
+                            title="Download Receipt"
+                        >
+                            🧾 Receipt
+                        </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          
+          {/* Detailed Pagination Controls */}
+            <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                
+                {/* First Page */}
+                <button 
+                    className="btn btn-secondary pagination-btn" 
+                    disabled={page === 1} 
+                    onClick={() => handlePageChange(1)}
+                    title="First Page"
+                >
+                    &laquo;
+                </button>
+
+                {/* Previous */}
+                <button 
+                    className="btn btn-secondary pagination-btn" 
+                    disabled={page === 1} 
+                    onClick={() => handlePageChange(page - 1)}
+                    title="Previous Page"
+                >
+                    &lsaquo;
+                </button>
+
+                {/* Page Numbers */}
+                {(() => {
+                    const pages = [];
+                    let start = Math.max(1, page - Math.floor(maxVisiblePages / 2));
+                    let end = Math.min(totalPages, start + maxVisiblePages - 1);
+
+                    if (end - start + 1 < maxVisiblePages) {
+                        start = Math.max(1, end - maxVisiblePages + 1);
+                    }
+
+                    if (start > 1) {
+                        pages.push(
+                            <button key={1} className={`btn ${page === 1 ? 'btn-primary' : 'btn-secondary'} pagination-btn`} onClick={() => handlePageChange(1)}>1</button>
+                        );
+                        if (start > 2) pages.push(<span key="dots1" style={{ margin: '0 0.5rem' }}>...</span>);
+                    }
+
+                    for (let i = start; i <= end; i++) {
+                        pages.push(
+                            <button 
+                                key={i} 
+                                className={`btn ${page === i ? 'btn-primary' : 'btn-secondary'} pagination-btn`} 
+                                style={page === i ? { backgroundColor: 'var(--primary-color)', color: 'white', borderColor: 'var(--primary-color)' } : {}}
+                                onClick={() => handlePageChange(i)}
+                            >
+                                {i}
+                            </button>
+                        );
+                    }
+
+                    if (end < totalPages) {
+                        if (end < totalPages - 1) pages.push(<span key="dots2" style={{ margin: '0 0.5rem' }}>...</span>);
+                        pages.push(
+                            <button key={totalPages} className={`btn ${page === totalPages ? 'btn-primary' : 'btn-secondary'} pagination-btn`} onClick={() => handlePageChange(totalPages)}>{totalPages}</button>
+                        );
+                    }
+
+                    return pages;
+                })()}
+
+                {/* Next */}
+                <button 
+                    className="btn btn-secondary pagination-btn" 
+                    disabled={page === totalPages} 
+                    onClick={() => handlePageChange(page + 1)}
+                    title="Next Page"
+                >
+                    &rsaquo;
+                </button>
+
+                {/* Last Page */}
+                <button 
+                    className="btn btn-secondary pagination-btn" 
+                    disabled={page === totalPages} 
+                    onClick={() => handlePageChange(totalPages)}
+                    title="Last Page"
+                >
+                    &raquo;
+                </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Unified Modal */}
+      <Modal
+        isOpen={modal.isOpen}
+        title={modal.title}
+        onClose={() => setModal({ ...modal, isOpen: false })}
+        onConfirm={handleConfirmAction}
+        isLoading={isSubmitting}
+        confirmText={
+            modal.type === 'PAYMENT_FORM' ? 'Save Payment' :
+            modal.type === 'TENANT_FORM' ? 'Assign Tenant' :
+            modal.type === 'MOVEOUT' ? 'Confirm Move Out' : 'Confirm'
+        }
+        confirmColor={modal.type === 'MOVEOUT' ? 'danger' : 'primary'}
+      >
+        {modal.type === 'PAYMENT_FORM' && (
+            <form id="payment-form">
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                    <label style={{display:'block', marginBottom:'0.2rem'}}>Payment Date</label>
+                    <input 
+                        type="date" 
+                        value={paymentDate} 
+                        onChange={e => setPaymentDate(e.target.value)} 
+                        required 
+                        style={{width:'100%', padding:'0.5rem'}}
+                    />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                    <label style={{display:'block', marginBottom:'0.2rem'}}>Payment Method</label>
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                        <label style={{ cursor: 'pointer' }}>
+                            <input 
+                                type="radio" 
+                                name="paymentMethod" 
+                                value="cash" 
+                                checked={paymentMethod === 'cash'} 
+                                onChange={() => setPaymentMethod('cash')} 
+                            /> Cash
+                        </label>
+                        <label style={{ cursor: 'pointer' }}>
+                            <input 
+                                type="radio" 
+                                name="paymentMethod" 
+                                value="transfer" 
+                                checked={paymentMethod === 'transfer'} 
+                                onChange={() => setPaymentMethod('transfer')} 
+                            /> Transfer
+                        </label>
+                    </div>
+                </div>
+
+                {paymentMethod === 'transfer' && (
+                    <div className="form-group" style={{ marginBottom: '1rem' }}>
+                        <label style={{display:'block', marginBottom:'0.2rem'}}>Bank Name</label>
+                        <select 
+                            value={bankName} 
+                            onChange={e => setBankName(e.target.value)} 
+                            required 
+                            style={{width:'100%', padding:'0.5rem'}}
+                        >
+                            <option value="">Select Bank</option>
+                            <option value="BCA">BCA</option>
+                            <option value="BNI">BNI</option>
+                            <option value="Mandiri">Mandiri</option>
+                        </select>
+                    </div>
+                )}
+
+                <div className="form-group">
+                <label>Amount (Fixed)</label>
+                <input type="text" value={formatCurrency(amount)} readOnly style={{ backgroundColor: '#e2e8f0', width: '100%', padding: '0.5rem', marginBottom: '1rem' }} />
+                </div>
+                
+                <div style={{ marginBottom: '1rem', padding: '0.75rem', background: '#e2e8f0', borderRadius: '8px' }}>
+                    <label style={{ marginBottom: '0.2rem', display: 'block' }}>Payment Period</label>
+                    <strong>
+                    {formatDate(periodStart)} &mdash; {formatDate(periodEnd)}
+                    </strong>
+                </div>
+            </form>
+        )}
+
+        {modal.type === 'TENANT_FORM' && (
+            <form id="tenant-form">
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                    <label style={{display:'block', marginBottom:'0.2rem'}}>Tenant Name</label>
+                    <input type="text" value={tenantName} onChange={e => setTenantName(e.target.value)} required style={{width:'100%', padding:'0.5rem'}} />
+                </div>
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                    <label style={{display:'block', marginBottom:'0.2rem'}}>Phone Number</label>
+                    <input type="number" value={tenantPhone} onChange={e => setTenantPhone(e.target.value)} required style={{width:'100%', padding:'0.5rem'}} />
+                </div>
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                    <label style={{display:'block', marginBottom:'0.2rem'}}>ID Number (KTP/Passport)</label>
+                    <input type="text" value={tenantId} onChange={e => setTenantId(e.target.value)} required style={{width:'100%', padding:'0.5rem'}} />
+                </div>
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                    <label style={{display:'block', marginBottom:'0.2rem'}}>Move In Date</label>
+                    <input 
+                    type="date" 
+                    value={occupiedAt} 
+                    onChange={e => setOccupiedAt(e.target.value)} 
+                    max={new Date(new Date().setMonth(new Date().getMonth() + 2)).toISOString().split('T')[0]}
+                    min={new Date(new Date().setDate(1)).toISOString().split('T')[0]} 
+                    required 
+                    style={{width:'100%', padding:'0.5rem'}}
+                    />
+                    <small style={{ color: 'var(--text-secondary)' }}>Current month or up to 2 months ahead</small>
+                </div>
+            </form>
+        )}
+
+        {modal.type === 'MOVEOUT' && (
+            <p>Are you sure you want to proceed with the move out? This action cannot be undone.</p>
+        )}
+      </Modal>
+
+      {/* Success Modal */}
+      <Modal
+        isOpen={successModal.isOpen}
+        title="Success"
+        onClose={() => setSuccessModal({ ...successModal, isOpen: false })}
+        // No confirm button for success
+      >
+        <div style={{ textAlign: 'center', padding: '1rem' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>✅</div>
+            <p style={{ fontSize: '1.1rem' }}>{successModal.message}</p>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+export default RoomDetail;

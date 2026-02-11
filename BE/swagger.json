@@ -1,0 +1,214 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Residence API",
+    "version": "1.0.0",
+    "description": "API for Residence Management System"
+  },
+  "servers": [
+    {
+      "url": "https://res-api.infidea.dev"
+    },
+    {
+      "url": "http://localhost:3693",
+      "description": "Local Development"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "summary": "Login user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": { "type": "string" },
+                  "password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful login",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": { "type": "string" },
+                    "role": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "summary": "Register new user (Super Admin only)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": { "type": "string" },
+                  "password": { "type": "string" },
+                  "role": { "type": "string", "default": "user" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "User created" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/rooms": {
+      "get": {
+        "summary": "List all rooms",
+        "responses": {
+          "200": { "description": "List of rooms with status" }
+        }
+      },
+      "post": {
+        "summary": "Create new room (Super Admin only)",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "room_number": { "type": "string" },
+                  "building_name": { "type": "string" },
+                  "price": { "type": "number" },
+                  "status": { "type": "string", "enum": ["empty", "filled"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Room created" }
+        }
+      }
+    },
+    "/rooms/{id}": {
+      "get": {
+        "summary": "Get Room Detail",
+        "parameters": [ { "in": "path", "name": "id", "required": true, "schema": { "type": "integer" } } ],
+        "responses": {
+          "200": { "description": "Room details with nextDueDate" },
+          "404": { "description": "Room not found" }
+        }
+      }
+    },
+    "/rooms/{id}/tenant": {
+      "post": {
+        "summary": "Assign Tenant",
+        "parameters": [
+          { "in": "path", "name": "id", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tenant_name": { "type": "string" },
+                  "tenant_id_number": { "type": "string" },
+                  "tenant_phone": { "type": "string" },
+                  "occupied_at": { "type": "string", "format": "date" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Tenant assigned" }
+        }
+      }
+    },
+    "/rooms/{id}/moveout": {
+      "post": {
+        "summary": "Move Out Tenant",
+        "parameters": [ { "in": "path", "name": "id", "required": true, "schema": { "type": "integer" } } ],
+        "responses": {
+          "200": { "description": "Tenant moved out" }
+        }
+      }
+    },
+    "/payments": {
+      "get": {
+        "summary": "Get Global Payment History",
+        "responses": {
+          "200": { "description": "List of all payments" }
+        }
+      }
+    },
+    "/payments/{roomId}": {
+      "get": {
+        "summary": "Get Room Payment History",
+        "parameters": [ { "in": "path", "name": "roomId", "required": true, "schema": { "type": "integer" } } ],
+        "responses": {
+          "200": { "description": "Payment history for room" }
+        }
+      },
+      "post": {
+        "summary": "Record Payment",
+        "parameters": [ { "in": "path", "name": "roomId", "required": true, "schema": { "type": "integer" } } ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "amount": { "type": "number" },
+                  "period_start": { "type": "string", "format": "date" },
+                  "period_end": { "type": "string", "format": "date" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Payment recorded" }
+        }
+      }
+    },
+    "/payments/{roomId}/status": {
+      "get": {
+        "summary": "Get Payment Status (Overdue/Next Due)",
+        "parameters": [ { "in": "path", "name": "roomId", "required": true, "schema": { "type": "integer" } } ],
+        "responses": {
+          "200": { "description": "Status object" }
+        }
+      }
+    }
+  }
+}
