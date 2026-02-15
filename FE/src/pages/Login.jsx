@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { useLanguage } from '../context/LanguageContext';
 
 function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -31,10 +33,10 @@ function Login() {
   return (
     <div className="container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
       <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
-        <h2 style={{ textAlign: 'center' }}>Residence Admin</h2>
+        <h2 style={{ textAlign: 'center' }}>{t('loginTitle')}</h2>
         <form onSubmit={handleLogin}>
           <div className="form-group">
-            <label>Username</label>
+            <label>{t('username')}</label>
             <input 
               type="text" 
               value={username} 
@@ -43,7 +45,7 @@ function Login() {
             />
           </div>
           <div className="form-group">
-            <label>Password</label>
+            <label>{t('password')}</label>
             <input 
               type="password" 
               value={password} 
@@ -52,7 +54,7 @@ function Login() {
             />
           </div>
           {error && <div style={{ color: 'var(--danger-color)', marginBottom: '1rem' }}>{error}</div>}
-          <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Login</button>
+          <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>{t('loginBtn')}</button>
         </form>
       </div>
     </div>

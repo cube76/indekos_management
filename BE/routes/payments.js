@@ -12,7 +12,7 @@ router.get('/', authenticateToken, async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
     
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, building_id } = req.query;
 
     let whereClause = '';
     const queryParams = [];
@@ -28,10 +28,16 @@ router.get('/', authenticateToken, async (req, res) => {
         queryParams.push(`${endDate} 23:59:59`);
     }
 
+    if (building_id) {
+        whereClause += ' AND r.building_id = ?';
+        queryParams.push(building_id);
+    }
+
     // 1. Count Total Records & Calculate Total Profit (for the filter)
     const countQuery = `
         SELECT COUNT(*) as total, SUM(p.amount) as totalProfit 
         FROM payments p 
+        JOIN rooms r ON p.room_id = r.id
         WHERE 1=1 ${whereClause}
     `;
     const [summaryResult] = await db.query(countQuery, queryParams);
@@ -123,17 +129,12 @@ router.post('/:roomId', authenticateToken, async (req, res) => {
     const [rooms] = await db.query('SELECT tenant_name FROM rooms WHERE id = ?', [req.params.roomId]);
     const tenantName = rooms.length > 0 ? rooms[0].tenant_name : null;
 
-    const start = new Date(period_start).toISOString().slice(0, 19).replace('T', ' ');
-    const end = new Date(period_end).toISOString().slice(0, 19).replace('T', ' ');
-    
     // Default to NOW if not provided
-    const paidAt = payment_date 
-        ? new Date(payment_date).toISOString().slice(0, 19).replace('T', ' ')
-        : new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const paidAt = payment_date ? new Date(payment_date) : new Date();
 
     await db.query(
       'INSERT INTO payments (room_id, tenant_name, amount, period_start, period_end, payment_date, payment_method, bank_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [req.params.roomId, tenantName, amount, start, end, paidAt, payment_method || 'cash', bank_name || null]
+      [req.params.roomId, tenantName, amount, new Date(period_start), new Date(period_end), paidAt, payment_method || 'cash', bank_name || null]
     );
     res.status(201).send('Payment recorded');
   } catch (error) {

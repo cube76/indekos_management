@@ -117,7 +117,10 @@ const checkOverdueAndNotify = async (isManual = false) => {
 
 function startReminders() {
   // Run every day at 09:00 AM
-  cron.schedule('0 9 * * *', checkOverdueAndNotify);
+  cron.schedule('0 9 * * *', checkOverdueAndNotify, {
+    scheduled: true,
+    timezone: "Asia/Jakarta"
+  });
   console.log('Payment reminder cron job scheduled.');
 }
 

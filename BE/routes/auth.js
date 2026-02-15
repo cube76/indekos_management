@@ -84,4 +84,22 @@ router.put('/users/:id/password', authenticateToken, requireRole('superadmin'), 
     }
 });
 
+// Delete User (Super Admin Only, except 'admin')
+router.delete('/users/:id', authenticateToken, requireRole('superadmin'), async (req, res) => {
+    try {
+        const [users] = await db.query('SELECT username FROM users WHERE id = ?', [req.params.id]);
+        if (users.length === 0) return res.status(404).send('User not found');
+
+        if (users[0].username === 'admin') {
+            return res.status(403).send('Cannot delete the main super admin');
+        }
+
+        await db.query('DELETE FROM users WHERE id = ?', [req.params.id]);
+        res.send('User deleted successfully');
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
 module.exports = router;

@@ -4,10 +4,12 @@ import api, { API_BASE_URL } from '../services/api';
 import { formatDate, formatCurrency, formatInputPrice, parseInputPrice } from '../utils/format';
 import { generateReceipt, generateInvoice } from '../utils/receipt';
 import Modal from '../components/Modal';
+import { useLanguage } from '../context/LanguageContext';
 
 function RoomDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [room, setRoom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -129,7 +131,7 @@ function RoomDetail() {
     setBankName('');
     setModal({
         isOpen: true,
-        title: 'Record Payment',
+        title: t('recordPayment'),
         type: 'PAYMENT_FORM',
         data: null
     });
@@ -144,7 +146,7 @@ function RoomDetail() {
       
       setModal({
         isOpen: true,
-        title: 'Assign New Tenant',
+        title: t('assignTenantBtn'),
         type: 'TENANT_FORM',
         data: null
       });
@@ -153,7 +155,7 @@ function RoomDetail() {
   const triggerMoveOut = () => {
     setModal({
         isOpen: true,
-        title: isSevereOverdue() ? 'Confirm Forced Move Out' : 'Confirm Move Out',
+        title: isSevereOverdue() ? t('confirmForceMoveOutTitle') : t('confirmMoveOutTitle'),
         type: 'MOVEOUT',
         data: null
     });
@@ -217,17 +219,17 @@ function RoomDetail() {
                 payment_method: paymentMethod,
                 bank_name: paymentMethod === 'transfer' ? bankName : null
             });
-            setSuccessModal({ isOpen: true, message: 'Payment recorded successfully!' });
+            setSuccessModal({ isOpen: true, message: t('paymentSuccess') });
             fetchHistory();
         } 
         else if (modal.type === 'TENANT_FORM') {
             await api.post(`/rooms/${id}/tenant`, { tenant_name: tenantName, tenant_id_number: tenantId, tenant_phone: tenantPhone, occupied_at: occupiedAt });
-            setSuccessModal({ isOpen: true, message: 'Tenant assigned successfully! First month payment recorded.' });
+            setSuccessModal({ isOpen: true, message: t('tenantSuccess') });
             fetchHistory();
         } 
         else if (modal.type === 'MOVEOUT') {
             await api.post(`/rooms/${id}/moveout`);
-            setSuccessModal({ isOpen: true, message: 'Tenant moved out successfully.' });
+            setSuccessModal({ isOpen: true, message: t('moveOutSuccess') });
         }
         
         // Refresh Data
@@ -298,13 +300,13 @@ function RoomDetail() {
   return (
     <div className="container">
       <button onClick={() => navigate('/dashboard')} className="btn btn-secondary" style={{ marginBottom: '1rem' }}>
-        &larr; Back to Dashboard
+        &larr; {t('backToDashboard')}
       </button>
 
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-             <h1 style={{ marginBottom: 0, fontSize: '1.8rem' }}>Room {room.room_number}</h1>
+             <h1 style={{ marginBottom: 0, fontSize: '1.8rem' }}>{t('room')} {room.room_number}</h1>
              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
                  {room.building_logo && (
                      <img 
@@ -326,7 +328,7 @@ function RoomDetail() {
                    room.isOverdue ? 'status-overdue' : 
                    isDueSoon() ? 'status-warning' : 'status-paid'
                }`}>
-                 {room.isOverdue ? 'OVERDUE' : isDueSoon() ? 'DUE SOON' : 'PAID'}
+                 {room.isOverdue ? t('overdue') : isDueSoon() ? t('dueSoon') : t('paid')}
                </span>
                
 
@@ -337,39 +339,39 @@ function RoomDetail() {
         
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', marginTop: '1rem' }}>
           <div>
-            <h3>Room Details</h3>
-            <p><strong>Price:</strong> {formatCurrency(room.price)}</p>
+            <h3>{t('roomDetails')}</h3>
+            <p><strong>{t('price')}:</strong> {formatCurrency(room.price)}</p>
             {room.status === 'filled' ? (
               <div style={{ 
                 backgroundColor: '#f0f9ff', 
                 border: '1px solid #bae6fd', 
                 padding: '1rem', 
-                borderRadius: '8px',
+                borderRadius: '8px', 
                 marginTop: '0.5rem'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', color: '#0369a1' }}>
-                    <strong>Current Tenant</strong>
+                    <strong>{t('currentTenant')}</strong>
                 </div>
                 <p style={{ margin: '0.2rem 0', fontSize: '1.1rem', fontWeight: 'bold' }}>{room.tenant_name}</p>
                 <p style={{ margin: '0.2rem 0' }}>📞 {room.tenant_phone}</p>
                 <p style={{ margin: '0.2rem 0' }}>🆔 {room.tenant_id_number}</p>
                 <hr style={{ borderColor: '#bae6fd', margin: '0.5rem 0' }}/>
-                <p style={{ margin: '0.2rem 0', fontSize: '0.9rem' }}>Occupied Since: {formatDate(room.occupied_at)}</p>
-                <p style={{ margin: '0.2rem 0', fontSize: '0.9rem' }}>Next Due: {formatDate(room.nextDueDate)}</p>
+                <p style={{ margin: '0.2rem 0', fontSize: '0.9rem' }}>{t('occupiedSince')}: {formatDate(room.occupied_at)}</p>
+                <p style={{ margin: '0.2rem 0', fontSize: '0.9rem' }}>{t('nextDue')}: {formatDate(room.nextDueDate)}</p>
               </div>
             ) : (
-                <p><em>Room is currently empty.</em></p>
+                <p><em>{t('empty')}</em></p>
             )}
           </div>
 
           <div>
-            <h3>Actions</h3>
+            <h3>{t('actions')}</h3>
             {room.status === 'filled' ? (
                 <>
                 <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                     {canShowPaymentButton() && (
                         <button onClick={openPaymentModal} className="btn btn-primary" style={{ flex: '1 1 auto' }}>
-                             Record Payment
+                             {t('recordPayment')}
                         </button>
                     )}
                     {(isDueSoon() || room.isOverdue) && (
@@ -378,22 +380,22 @@ function RoomDetail() {
                         className="btn btn-secondary" 
                         style={{ flex: '1 1 auto', backgroundColor: '#64748b', borderColor: '#64748b' }}
                     >
-                        📄 Invoice
+                        📄 {t('invoiceBtn')}
                     </button>
                     )}
                     <button onClick={triggerMoveOut} className="btn btn-danger" style={{ flex: '1 1 auto' }}>
-                        {isSevereOverdue() ? '⚠️ Force Move Out (Kick Out)' : 'Move Out'}
+                        {isSevereOverdue() ? t('forceMoveOutBtn') : t('moveOutBtn')}
                     </button>
                 </div>
                 {isSevereOverdue() && (
                     <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: '#fee2e2', color: '#dc2626', borderRadius: '4px', border: '1px solid #fca5a5' }}>
-                        <strong>Status Critical:</strong> Tenant is more than 1 month overdue. Payment is disabled. You must move them out.
+                        <strong>{t('statusCritical')}:</strong> {t('statusCriticalMsg')}
                     </div>
                 )}
                 </>
             ) : (
                 <button onClick={openTenantModal} className="btn btn-primary">
-                    Assign Tenant
+                    {t('assignTenantBtn')}
                 </button>
             )}
           </div>
@@ -402,23 +404,23 @@ function RoomDetail() {
       </div>
 
       <div className="card">
-        <h3>Room Payment History</h3>
+        <h3>{t('room')} {t('paymentHistory')}</h3>
         {loadingHistory ? (
            <div className="spinner-container">
              <div className="spinner"></div>
            </div>
-        ) : history.length === 0 ? <p>No payments recorded.</p> : (
+        ) : history.length === 0 ? <p>{t('noPayments')}</p> : (
           <>
           <div className="table-container">
             <table>
               <thead>
                 <tr>
-                  <th>Date Recorded</th>
-                  <th>Tenant</th>
-                  <th>Period</th>
-                  <th>Amount</th>
-                  <th>Method</th>
-                  <th>Action</th>
+                  <th>{t('dateRecorded')}</th>
+                  <th>{t('tenant')}</th>
+                  <th>{t('period')}</th>
+                  <th>{t('amount')}</th>
+                  <th>{t('method')}</th>
+                  <th>{t('action')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -430,17 +432,17 @@ function RoomDetail() {
                     <td>{formatCurrency(p.amount)}</td>
                     <td>
                         {p.payment_method === 'transfer' 
-                            ? `Transfer (${p.bank_name || '-'})` 
-                            : 'Cash'}
+                            ? `${t('transfer')} (${p.bank_name || '-'})` 
+                            : t('cash')}
                     </td>
                     <td>
                         <button 
                             onClick={() => generateReceipt(p, room)}
                             className="btn btn-secondary"
                             style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                            title="Download Receipt"
+                            title={t('downloadReceipt')}
                         >
-                            🧾 Receipt
+                            🧾 {t('receipt')}
                         </button>
                     </td>
                   </tr>
@@ -457,7 +459,7 @@ function RoomDetail() {
                     className="btn btn-secondary pagination-btn" 
                     disabled={page === 1} 
                     onClick={() => handlePageChange(1)}
-                    title="First Page"
+                    title={t('firstPage')}
                 >
                     &laquo;
                 </button>
@@ -467,7 +469,7 @@ function RoomDetail() {
                     className="btn btn-secondary pagination-btn" 
                     disabled={page === 1} 
                     onClick={() => handlePageChange(page - 1)}
-                    title="Previous Page"
+                    title={t('prevPage')}
                 >
                     &lsaquo;
                 </button>
@@ -517,7 +519,7 @@ function RoomDetail() {
                     className="btn btn-secondary pagination-btn" 
                     disabled={page === totalPages} 
                     onClick={() => handlePageChange(page + 1)}
-                    title="Next Page"
+                    title={t('nextPage')}
                 >
                     &rsaquo;
                 </button>
@@ -527,7 +529,7 @@ function RoomDetail() {
                     className="btn btn-secondary pagination-btn" 
                     disabled={page === totalPages} 
                     onClick={() => handlePageChange(totalPages)}
-                    title="Last Page"
+                    title={t('lastPage')}
                 >
                     &raquo;
                 </button>
@@ -544,16 +546,16 @@ function RoomDetail() {
         onConfirm={handleConfirmAction}
         isLoading={isSubmitting}
         confirmText={
-            modal.type === 'PAYMENT_FORM' ? 'Save Payment' :
-            modal.type === 'TENANT_FORM' ? 'Assign Tenant' :
-            modal.type === 'MOVEOUT' ? 'Confirm Move Out' : 'Confirm'
+            modal.type === 'PAYMENT_FORM' ? t('save') :
+            modal.type === 'TENANT_FORM' ? t('assignTenantBtn') :
+            modal.type === 'MOVEOUT' ? t('confirmMoveOutTitle') : t('confirm')
         }
         confirmColor={modal.type === 'MOVEOUT' ? 'danger' : 'primary'}
       >
         {modal.type === 'PAYMENT_FORM' && (
             <form id="payment-form">
                 <div className="form-group" style={{ marginBottom: '1rem' }}>
-                    <label style={{display:'block', marginBottom:'0.2rem'}}>Payment Date</label>
+                    <label style={{display:'block', marginBottom:'0.2rem'}}>{t('paymentDate')}</label>
                     <input 
                         type="date" 
                         value={paymentDate} 
@@ -564,7 +566,7 @@ function RoomDetail() {
                 </div>
 
                 <div className="form-group" style={{ marginBottom: '1rem' }}>
-                    <label style={{display:'block', marginBottom:'0.2rem'}}>Payment Method</label>
+                    <label style={{display:'block', marginBottom:'0.2rem'}}>{t('paymentMethod')}</label>
                     <div style={{ display: 'flex', gap: '1rem' }}>
                         <label style={{ cursor: 'pointer' }}>
                             <input 
@@ -573,7 +575,7 @@ function RoomDetail() {
                                 value="cash" 
                                 checked={paymentMethod === 'cash'} 
                                 onChange={() => setPaymentMethod('cash')} 
-                            /> Cash
+                            /> {t('cash')}
                         </label>
                         <label style={{ cursor: 'pointer' }}>
                             <input 
@@ -582,21 +584,21 @@ function RoomDetail() {
                                 value="transfer" 
                                 checked={paymentMethod === 'transfer'} 
                                 onChange={() => setPaymentMethod('transfer')} 
-                            /> Transfer
+                            /> {t('transfer')}
                         </label>
                     </div>
                 </div>
 
                 {paymentMethod === 'transfer' && (
                     <div className="form-group" style={{ marginBottom: '1rem' }}>
-                        <label style={{display:'block', marginBottom:'0.2rem'}}>Bank Name</label>
+                        <label style={{display:'block', marginBottom:'0.2rem'}}>{t('bankName')}</label>
                         <select 
                             value={bankName} 
                             onChange={e => setBankName(e.target.value)} 
                             required 
                             style={{width:'100%', padding:'0.5rem'}}
                         >
-                            <option value="">Select Bank</option>
+                            <option value="">{t('selectBank')}</option>
                             <option value="BCA">BCA</option>
                             <option value="BNI">BNI</option>
                             <option value="Mandiri">Mandiri</option>
@@ -605,12 +607,12 @@ function RoomDetail() {
                 )}
 
                 <div className="form-group">
-                <label>Amount (Fixed)</label>
+                <label>{t('amountFixed')}</label>
                 <input type="text" value={formatCurrency(amount)} readOnly style={{ backgroundColor: '#e2e8f0', width: '100%', padding: '0.5rem', marginBottom: '1rem' }} />
                 </div>
                 
                 <div style={{ marginBottom: '1rem', padding: '0.75rem', background: '#e2e8f0', borderRadius: '8px' }}>
-                    <label style={{ marginBottom: '0.2rem', display: 'block' }}>Payment Period</label>
+                    <label style={{ marginBottom: '0.2rem', display: 'block' }}>{t('paymentPeriod')}</label>
                     <strong>
                     {formatDate(periodStart)} &mdash; {formatDate(periodEnd)}
                     </strong>
@@ -621,19 +623,19 @@ function RoomDetail() {
         {modal.type === 'TENANT_FORM' && (
             <form id="tenant-form">
                 <div className="form-group" style={{ marginBottom: '1rem' }}>
-                    <label style={{display:'block', marginBottom:'0.2rem'}}>Tenant Name</label>
+                    <label style={{display:'block', marginBottom:'0.2rem'}}>{t('tenantName')}</label>
                     <input type="text" value={tenantName} onChange={e => setTenantName(e.target.value)} required style={{width:'100%', padding:'0.5rem'}} />
                 </div>
                 <div className="form-group" style={{ marginBottom: '1rem' }}>
-                    <label style={{display:'block', marginBottom:'0.2rem'}}>Phone Number</label>
+                    <label style={{display:'block', marginBottom:'0.2rem'}}>{t('phoneNumber')}</label>
                     <input type="number" value={tenantPhone} onChange={e => setTenantPhone(e.target.value)} required style={{width:'100%', padding:'0.5rem'}} />
                 </div>
                 <div className="form-group" style={{ marginBottom: '1rem' }}>
-                    <label style={{display:'block', marginBottom:'0.2rem'}}>ID Number (KTP/Passport)</label>
+                    <label style={{display:'block', marginBottom:'0.2rem'}}>{t('idNumber')}</label>
                     <input type="text" value={tenantId} onChange={e => setTenantId(e.target.value)} required style={{width:'100%', padding:'0.5rem'}} />
                 </div>
                 <div className="form-group" style={{ marginBottom: '1rem' }}>
-                    <label style={{display:'block', marginBottom:'0.2rem'}}>Move In Date</label>
+                    <label style={{display:'block', marginBottom:'0.2rem'}}>{t('moveInDate')}</label>
                     <input 
                     type="date" 
                     value={occupiedAt} 
@@ -643,13 +645,13 @@ function RoomDetail() {
                     required 
                     style={{width:'100%', padding:'0.5rem'}}
                     />
-                    <small style={{ color: 'var(--text-secondary)' }}>Current month or up to 2 months ahead</small>
+                    <small style={{ color: 'var(--text-secondary)' }}>{t('moveInDateNote')}</small>
                 </div>
             </form>
         )}
 
         {modal.type === 'MOVEOUT' && (
-            <p>Are you sure you want to proceed with the move out? This action cannot be undone.</p>
+            <p>{t('confirmMoveOutMsg')}</p>
         )}
       </Modal>
 

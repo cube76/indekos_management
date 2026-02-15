@@ -141,7 +141,7 @@ router.post('/:id/tenant', authenticateToken, async (req, res) => {
     if (rooms.length === 0) return res.status(404).send('Room not found');
     if (rooms[0].status === 'filled') return res.status(400).send('Room is already filled');
 
-    const formattedDate = new Date(occupied_at).toISOString().slice(0, 19).replace('T', ' ');
+    const formattedDate = new Date(occupied_at);
 
     await db.query(`
       UPDATE rooms 
@@ -157,14 +157,10 @@ router.post('/:id/tenant', authenticateToken, async (req, res) => {
       const periodStart = new Date(occupied_at);
       const periodEnd = addMonths(periodStart, 1);
       
-      // Ensure formatting for DB
-      const pStartStr = periodStart.toISOString().slice(0, 19).replace('T', ' ');
-      const pEndStr = periodEnd.toISOString().slice(0, 19).replace('T', ' ');
-      
       await db.query(`
       INSERT INTO payments (room_id, amount, period_start, period_end, payment_date, tenant_name)
       VALUES (?, ?, ?, ?, NOW(), ?)
-      `, [req.params.id, rooms[0].price, pStartStr, pEndStr, tenant_name]);
+      `, [req.params.id, rooms[0].price, periodStart, periodEnd, tenant_name]);
 
       res.send('Tenant assigned successfully');
       } catch (error) {
@@ -191,7 +187,7 @@ router.post('/:id/tenant', authenticateToken, async (req, res) => {
       tId = null;
       occAt = null;
       } else if (occAt) {
-      occAt = new Date(occAt).toISOString().slice(0, 19).replace('T', ' ');
+      occAt = new Date(occAt);
       }
 
     // building_name is legacy, we fetch it from DB for consistency if needed, or just insert.

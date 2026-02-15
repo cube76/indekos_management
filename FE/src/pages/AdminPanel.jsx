@@ -3,8 +3,10 @@ import api, { API_BASE_URL } from '../services/api';
 import { formatCurrency, formatInputPrice, parseInputPrice } from '../utils/format';
 import ResetPasswordModal from '../components/ResetPasswordModal';
 import Modal from '../components/Modal';
+import { useLanguage } from '../context/LanguageContext';
 
 function AdminPanel() {
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState('rooms'); // rooms, buildings, users
   const [loading, setLoading] = useState(false);
 
@@ -133,7 +135,7 @@ function AdminPanel() {
           // Reset form
           setBuildingForm({ id: null, name: '', address: '', logo: null });
       } catch (error) {
-          alert('Failed to save building: ' + (error.response?.data || error.message));
+          alert(`${t('saveBuildingFail')}: ` + (error.response?.data || error.message));
       }
   };
 
@@ -155,7 +157,7 @@ function AdminPanel() {
           fetchRooms();
           setRoomForm({ id: null, room_number: '', building_id: '', price: '' });
       } catch (error) {
-          alert('Failed to save room: ' + (error.response?.data || error.message));
+          alert(`${t('saveRoomFail')}: ` + (error.response?.data || error.message));
       }
   };
 
@@ -173,10 +175,11 @@ function AdminPanel() {
           fetchUsers();
           setUserForm({ username: '', password: '', role: 'user' });
       } catch (error) {
-          alert('Failed to create user: ' + (error.response?.data || error.message));
+          alert(`${t('createUserFail')}: ` + (error.response?.data || error.message));
       }
   };
 
+  // --- Delete Handlers ---
   // --- Delete Handlers ---
   const confirmDelete = async () => {
       try {
@@ -186,17 +189,27 @@ function AdminPanel() {
           } else if (deleteModal.type === 'room') {
               await api.deleteRoom(deleteModal.id);
               fetchRooms();
+          } else if (deleteModal.type === 'user') {
+              await api.deleteUser(deleteModal.id);
+              fetchUsers();
           }
           setDeleteModal({ isOpen: false, type: '', id: null });
       } catch (error) {
-          alert('Delete failed: ' + (error.response?.data || error.message));
+          alert(`${t('deleteFail')}: ` + (error.response?.data || error.message));
           setDeleteModal({ isOpen: false, type: '', id: null });
       }
   };
 
+  // Tab mapping
+  const tabLabels = {
+    rooms: t('room'), // Or 'Rooms' if plural needed, but 'Kamar' works for both in logic usually, or duplicate key
+    buildings: t('building'),
+    users: t('username') // Or new key 'Users'
+  };
+
   return (
     <div className="container">
-      <h1>Admin Panel</h1>
+      <h1>{t('adminPanel')}</h1>
       
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '1rem', borderBottom: '2px solid #e2e8f0', marginBottom: '2rem' }}>
@@ -216,24 +229,25 @@ function AdminPanel() {
                     textTransform: 'capitalize'
                 }}
               >
-                  {tab}
+                  {/* Simple mapping or use specific keys */}
+                  {tab === 'rooms' ? t('roomsTab') : tab === 'buildings' ? t('buildingsTab') : t('usersTab')}
               </button>
           ))}
           <button 
             className="btn btn-warning" 
             style={{ marginLeft: 'auto', padding: '0.5rem 1rem' }} 
             onClick={async () => {
-                if (confirm('Trigger Due Soon/Overdue notifications now?')) {
+                if (confirm(t('triggerNotifMsg'))) {
                     try {
                         await api.post('/notifications/trigger');
-                        alert('Notifications triggered! Check your device.');
+                        alert(t('triggerSuccess'));
                     } catch (e) {
                          alert('Failed: ' + e.message);
                     }
                 }
             }}
           >
-              🔔 Test Notifications
+              {t('testNotif')}
           </button>
       </div>
 
@@ -243,20 +257,20 @@ function AdminPanel() {
       {activeTab === 'rooms' && (
           <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h3>Manage Rooms</h3>
+                <h3>{t('manageRooms')}</h3>
                 <button className="btn btn-primary" onClick={() => { setRoomForm({ id: null, room_number: '', building_id: '', price: '' }); setRoomModalOpen(true); }}>
-                    + New Room
+                    {t('newRoom')}
                 </button>
               </div>
               <div className="table-container card">
                   <table>
                       <thead>
                           <tr>
-                              <th>Room</th>
-                              <th>Building</th>
-                              <th>Price</th>
-                              <th>Status</th>
-                              <th>Actions</th>
+                              <th>{t('room')}</th>
+                              <th>{t('building')}</th>
+                              <th>{t('price')}</th>
+                              <th>{t('status')}</th>
+                              <th>{t('actions')}</th>
                           </tr>
                       </thead>
                       <tbody>
@@ -265,10 +279,10 @@ function AdminPanel() {
                                   <td>{r.room_number}</td>
                                   <td>{r.building_name}</td>
                                   <td>{formatCurrency(r.price)}</td>
-                                  <td><span className={`status-badge ${r.status === 'filled' ? 'status-filled' : 'status-empty'}`}>{r.status}</span></td>
+                                  <td><span className={`status-badge ${r.status === 'filled' ? 'status-filled' : 'status-empty'}`}>{r.status === 'filled' ? t('filled') : t('empty')}</span></td>
                                   <td>
-                                      <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', marginRight: '0.5rem' }} onClick={() => openEditRoom(r)}>Edit</button>
-                                      <button className="btn btn-danger" style={{ padding: '0.25rem 0.5rem' }} onClick={() => setDeleteModal({ isOpen: true, type: 'room', id: r.id })}>Delete</button>
+                                      <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', marginRight: '0.5rem' }} onClick={() => openEditRoom(r)}>{t('edit')}</button>
+                                      <button className="btn btn-danger" style={{ padding: '0.25rem 0.5rem' }} onClick={() => setDeleteModal({ isOpen: true, type: 'room', id: r.id })}>{t('delete')}</button>
                                   </td>
                               </tr>
                           ))}
@@ -282,9 +296,9 @@ function AdminPanel() {
       {activeTab === 'buildings' && (
            <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3>Manage Buildings</h3>
+              <h3>{t('manageBuildings')}</h3>
               <button className="btn btn-primary" onClick={() => { setBuildingForm({ id: null, name: '', address: '', logo: null }); setBuildingModalOpen(true); }}>
-                  + New Building
+                  {t('newBuilding')}
               </button>
             </div>
             <div className="grid-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
@@ -302,8 +316,8 @@ function AdminPanel() {
                             </div>
                         </div>
                         <div style={{ marginTop: 'auto', display: 'flex', gap: '0.5rem', paddingTop: '1rem' }}>
-                             <button className="btn btn-secondary" style={{ flex: 1, padding: '0.25rem' }} onClick={() => openEditBuilding(b)}>Edit</button>
-                             <button className="btn btn-danger" style={{ flex: 1, padding: '0.25rem' }} onClick={() => setDeleteModal({ isOpen: true, type: 'building', id: b.id })}>Delete</button>
+                             <button className="btn btn-secondary" style={{ flex: 1, padding: '0.25rem' }} onClick={() => openEditBuilding(b)}>{t('edit')}</button>
+                             <button className="btn btn-danger" style={{ flex: 1, padding: '0.25rem' }} onClick={() => setDeleteModal({ isOpen: true, type: 'building', id: b.id })}>{t('delete')}</button>
                         </div>
                     </div>
                 ))}
@@ -315,19 +329,19 @@ function AdminPanel() {
       {activeTab === 'users' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3>Manage Users</h3>
+              <h3>{t('manageUsers')}</h3>
               <button className="btn btn-primary" onClick={() => setUserModalOpen(true)}>
-                  + New User
+                  {t('newUser')}
               </button>
             </div>
              <div className="table-container card">
                 <table>
                   <thead>
                     <tr>
-                      <th>ID</th>
-                      <th>Username</th>
-                      <th>Role</th>
-                      <th>Action</th>
+                      <th>{t('id')}</th>
+                      <th>{t('username')}</th>
+                      <th>{t('role')}</th>
+                      <th>{t('action')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -336,15 +350,22 @@ function AdminPanel() {
                         <td>{u.id}</td>
                         <td>{u.username}</td>
                         <td>
-                            <span className={`status-badge ${u.role === 'superadmin' ? 'status-filled' : 'status-empty'}`}>{u.role}</span>
+                            <span className={`status-badge ${u.role === 'superadmin' ? 'status-filled' : 'status-empty'}`}>{u.role === 'superadmin' ? t('superAdmin') : t('userAdmin')}</span>
                         </td>
                         <td>
                           <button 
-                              className="btn btn-danger" 
-                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
+                              className="btn btn-warning" 
+                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', marginRight: '0.5rem' }}
                               onClick={() => setResetModal({ isOpen: true, userId: u.id, username: u.username })}
                           >
-                              Reset Password
+                              {t('resetPassword')}
+                          </button>
+                          <button 
+                              className="btn btn-danger" 
+                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
+                              onClick={() => setDeleteModal({ isOpen: true, type: 'user', id: u.id })}
+                          >
+                              {t('delete')}
                           </button>
                         </td>
                       </tr>
@@ -358,74 +379,74 @@ function AdminPanel() {
       {/* --- MODALS --- */}
 
       {/* Room Modal */}
-      <Modal isOpen={isRoomModalOpen} title={roomForm.id ? "Edit Room" : "Create Room"} onClose={() => setRoomModalOpen(false)}>
+      <Modal isOpen={isRoomModalOpen} title={roomForm.id ? t('editRoom') : t('createRoom')} onClose={() => setRoomModalOpen(false)}>
           <form onSubmit={handleSaveRoom}>
               <div className="form-group">
-                  <label>Room Number</label>
+                  <label>{t('roomNumber')}</label>
                   <input type="text" value={roomForm.room_number} onChange={e => setRoomForm({...roomForm, room_number: e.target.value})} required />
               </div>
               <div className="form-group">
-                  <label>Building</label>
+                  <label>{t('building')}</label>
                   <select value={roomForm.building_id} onChange={e => setRoomForm({...roomForm, building_id: e.target.value})} required>
-                      <option value="">Select Building</option>
+                      <option value="">{t('selectBank')}</option> {/* Reusing selectBank? Or need 'Select Building'. Using selectBank as placeholder for now or add new key */}
                       {buildings.map(b => (
                           <option key={b.id} value={b.id}>{b.name}</option>
                       ))}
                   </select>
               </div>
               <div className="form-group">
-                  <label>Price</label>
+                  <label>{t('price')}</label>
                   <input type="text" value={formatInputPrice(roomForm.price)} onChange={e => setRoomForm({...roomForm, price: parseInputPrice(e.target.value)})} />
               </div>
-              <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>{roomForm.id ? "Update" : "Create"}</button>
+              <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>{roomForm.id ? t('save') : t('createRoom')}</button>
           </form>
       </Modal>
 
       {/* Building Modal */}
-      <Modal isOpen={isBuildingModalOpen} title={buildingForm.id ? "Edit Building" : "Create Building"} onClose={() => setBuildingModalOpen(false)}>
+      <Modal isOpen={isBuildingModalOpen} title={buildingForm.id ? t('editBuilding') : t('createBuilding')} onClose={() => setBuildingModalOpen(false)}>
           <form onSubmit={handleSaveBuilding}>
               <div className="form-group">
-                  <label>Building Name</label>
+                  <label>{t('buildingName')}</label>
                   <input type="text" value={buildingForm.name} onChange={e => setBuildingForm({...buildingForm, name: e.target.value})} required />
               </div>
               <div className="form-group">
-                  <label>Address</label>
+                  <label>{t('address')}</label>
                   <textarea value={buildingForm.address} onChange={e => setBuildingForm({...buildingForm, address: e.target.value})} rows="3"></textarea>
               </div>
               <div className="form-group">
-                  <label>Logo</label>
+                  <label>{t('logo')}</label>
                   <input type="file" accept="image/*" onChange={e => setBuildingForm({...buildingForm, logo: e.target.files[0]})} />
-                  <small style={{ color: 'var(--text-secondary)' }}>Upload new logo to replace existing</small>
+                  <small style={{ color: 'var(--text-secondary)' }}>{t('uploadLogoNote')}</small>
               </div>
-              <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>{buildingForm.id ? "Update" : "Create"}</button>
+              <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>{buildingForm.id ? t('save') : t('createBuilding')}</button>
           </form>
       </Modal>
 
       {/* User Modal */}
-      <Modal isOpen={isUserModalOpen} title="Create User" onClose={() => setUserModalOpen(false)}>
+      <Modal isOpen={isUserModalOpen} title={t('createUser')} onClose={() => setUserModalOpen(false)}>
               <form onSubmit={handleCreateUser}>
                   <div className="form-group">
-                      <label>Username</label>
+                      <label>{t('username')}</label>
                       <input type="text" value={userForm.username} onChange={e => setUserForm({...userForm, username: e.target.value})} required />
                   </div>
                   <div className="form-group">
-                      <label>Password</label>
+                      <label>{t('password')}</label>
                       <input type="password" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} required />
                   </div>
                   <div className="form-group">
-                      <label>Role</label>
+                      <label>{t('role')}</label>
                       <select value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value})}>
-                          <option value="user">User (Admin)</option>
-                          <option value="superadmin">Super Admin</option>
+                          <option value="user">{t('userAdmin')}</option>
+                          <option value="superadmin">{t('superAdmin')}</option>
                       </select>
                   </div>
-                  <button type="submit" className="btn btn-success" style={{ backgroundColor: 'var(--success-color)', color: 'white', width: '100%' }}>Create User</button>
+                  <button type="submit" className="btn btn-success" style={{ backgroundColor: 'var(--success-color)', color: 'white', width: '100%' }}>{t('createUser')}</button>
               </form>
       </Modal>
 
       {/* Delete Confirmation Modal */}
-      <Modal isOpen={deleteModal.isOpen} title="Confirm Delete" onClose={() => setDeleteModal({ isOpen: false })} onConfirm={confirmDelete} confirmText="Delete" confirmColor="danger">
-          <p>Are you sure you want to delete this item? This action cannot be undone.</p>
+      <Modal isOpen={deleteModal.isOpen} title={t('confirmDelete')} onClose={() => setDeleteModal({ isOpen: false })} onConfirm={confirmDelete} confirmText={t('delete')} confirmColor="danger">
+          <p>{t('deleteMsg')}</p>
       </Modal>
 
       {/* Reset Password Modal (Keep existing) */}

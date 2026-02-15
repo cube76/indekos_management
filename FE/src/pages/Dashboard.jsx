@@ -2,14 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { formatCurrency } from '../utils/format';
+import { useLanguage } from '../context/LanguageContext';
+import { checkNotificationPermission } from '../utils/notifications';
 
 function Dashboard() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(null);
+  const { t } = useLanguage();
 
   useEffect(() => {
     fetchRooms();
+    checkNotificationPermission();
   }, []);
 
   const fetchRooms = async () => {
@@ -44,7 +48,7 @@ function Dashboard() {
       {/* Building Tabs */}
       <div style={{ display: 'flex', gap: '1rem', borderBottom: '2px solid #e2e8f0', marginBottom: '2rem' }}>
           {Object.keys(rooms.reduce((acc, room) => {
-              const name = room.building_name || 'Unassigned';
+              const name = room.building_name || t('unassigned');
               acc[name] = true;
               return acc;
           }, {})).sort().map((buildingName, index) => {
@@ -77,16 +81,16 @@ function Dashboard() {
       {/* Render Selected Building */}
       {(() => {
           const buildings = Object.keys(rooms.reduce((acc, room) => {
-              const name = room.building_name || 'Unassigned';
+              const name = room.building_name || t('unassigned');
               acc[name] = true;
               return acc;
           }, {})).sort();
           
           const currentTab = activeTab || buildings[0];
           
-          if (!currentTab) return <div>No buildings found.</div>;
+          if (!currentTab) return <div>{t('noBuildings')}</div>;
 
-          const buildingRooms = rooms.filter(r => (r.building_name || 'Unassigned') === currentTab);
+          const buildingRooms = rooms.filter(r => (r.building_name || t('unassigned')) === currentTab);
           
           return (
             <div className="card">
@@ -94,11 +98,11 @@ function Dashboard() {
                 <table>
                   <thead>
                     <tr>
-                      <th>Room</th>
-                      <th>Price</th>
-                      <th>Status</th>
-                      <th>Payment Status</th>
-                      <th>Action</th>
+                      <th>{t('room')}</th>
+                      <th>{t('price')}</th>
+                      <th>{t('status')}</th>
+                      <th>{t('paymentStatus')}</th>
+                      <th>{t('actions')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -108,7 +112,7 @@ function Dashboard() {
                         <td>{formatCurrency(room.price)}</td>
                         <td>
                           <span className={`status-badge ${room.status === 'filled' ? 'status-filled' : 'status-empty'}`}>
-                            {room.status}
+                            {room.status === 'filled' ? t('filled') : t('empty')}
                           </span>
                         </td>
                         <td>
@@ -128,7 +132,7 @@ function Dashboard() {
                                     room.isOverdue ? 'status-overdue' : 
                                     dueSoon ? 'status-warning' : 'status-paid'
                                 }`}>
-                                  {room.isOverdue ? 'OVERDUE' : dueSoon ? 'DUE SOON' : 'PAID'}
+                                  {room.isOverdue ? t('overdue') : dueSoon ? t('dueSoon') : t('paid')}
                                 </span>
                               );
                             })()
@@ -136,7 +140,7 @@ function Dashboard() {
                         </td>
                         <td>
                           <Link to={`/room/${room.id}`} className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
-                            Details
+                            {t('roomDetails')}
                           </Link>
                         </td>
                       </tr>

@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import api from '../services/api';
-import * as XLSX from 'xlsx';
+import XLSX from 'xlsx-js-style';
 import { formatDate, formatCurrency } from '../utils/format';
 import { generateReceipt } from '../utils/receipt';
+import { useLanguage } from '../context/LanguageContext';
 
 function PaymentHistory() {
+  const { t } = useLanguage();
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   
@@ -20,10 +22,35 @@ function PaymentHistory() {
 
   const [startDate, setStartDate] = useState(firstDay);
   const [endDate, setEndDate] = useState(lastDay);
+  
+  // Building Filter
+  const [buildings, setBuildings] = useState([]);
+  const [selectedBuilding, setSelectedBuilding] = useState('');
+
+  useEffect(() => {
+    fetchBuildings();
+  }, []);
 
   useEffect(() => {
     fetchPayments();
-  }, [page, startDate, endDate]);
+  }, [page, startDate, endDate, selectedBuilding]);
+
+  const fetchBuildings = async () => {
+      try {
+          const res = await api.get('/rooms'); // Reuse rooms endpoint to extract buildings (or separate endpoint if available)
+          // Extract unique buildings
+          const uniqueBuildings = {};
+          res.data.forEach(r => {
+             if(r.building_id && r.building_name) {
+                 uniqueBuildings[r.building_id] = r.building_name;
+             }
+          });
+          
+          setBuildings(Object.keys(uniqueBuildings).map(id => ({ id, name: uniqueBuildings[id] })).sort((a,b) => a.name.localeCompare(b.name)));
+      } catch (err) {
+          console.error("Failed to fetch buildings", err);
+      }
+  };
 
   const fetchPayments = async () => {
     setLoading(true);
@@ -32,18 +59,17 @@ function PaymentHistory() {
           page,
           limit: 10,
           startDate,
-          endDate
+          endDate,
+          building_id: selectedBuilding
       };
       
       const res = await api.get('/payments', { params });
       
-      // Handle new API structure { data, meta }
       if (res.data.meta) {
           setPayments(res.data.data);
           setTotalPages(res.data.meta.totalPages);
           setTotalProfit(res.data.meta.totalProfit);
       } else {
-          // Fallback if API structure mismatches (shouldnt happen with my change)
           setPayments(res.data); 
       }
     } catch (error) {
@@ -58,38 +84,107 @@ function PaymentHistory() {
 
     // Format data for Excel
     const dataToExport = payments.map(p => ({
-        'Date Recorded': formatDate(p.payment_date, true),
-        'Room': p.room_number,
-        'Building': p.building_name,
-        'Tenant': p.tenant_name || '',
-        'Method': p.payment_method === 'transfer' ? `Transfer (${p.bank_name || '-'})` : 'Cash',
-        'Period Start': formatDate(p.period_start),
-        'Period Start': formatDate(p.period_start),
-        'Period End': formatDate(p.period_end),
-        'Amount': parseFloat(p.amount) // Ensure number format for Excel math
+        [t('date')]: formatDate(p.payment_date, true),
+        [t('room')]: p.room_number,
+        [t('building')]: p.building_name,
+        [t('tenant')]: p.tenant_name || '',
+        [t('method')]: p.payment_method === 'transfer' ? `Transfer (${p.bank_name || '-'})` : t('cash'),
+        [t('periodStart')]: formatDate(p.period_start),
+        [t('periodEnd')]: formatDate(p.period_end),
+        [t('amount')]: parseFloat(p.amount)
     }));
+
+    // Add Total Row
+    // We want the total to be under the Amount column.
+    // Calculate empty keys for alignment
+    const totalRow = {
+        [t('date')]: '',
+        [t('room')]: '',
+        [t('building')]: '',
+        [t('tenant')]: '',
+        [t('method')]: '',
+        [t('periodStart')]: '',
+        [t('periodEnd')]: t('sum').toUpperCase(),
+        [t('amount')]: parseFloat(totalProfit) // Using totalProfit from meta which respects filter
+    };
+    dataToExport.push(totalRow);
 
     // Create Worksheet
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     
-    // Auto-width columns (basic approximation)
+    // Auto-width columns
     const wscols = [
         {wch: 20}, // Date
         {wch: 10}, // Room
         {wch: 15}, // Building
         {wch: 20}, // Tenant
+        {wch: 20}, // Method
         {wch: 15}, // Start
         {wch: 15}, // End
-        {wch: 10}  // Amount
+        {wch: 15}  // Amount
     ];
     ws['!cols'] = wscols;
+
+    // Apply Styles
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+       for (let C = range.s.c; C <= range.e.c; ++C) {
+          const cell_address = {c:C, r:R};
+          const cell_ref = XLSX.utils.encode_cell(cell_address);
+          
+          if (!ws[cell_ref]) continue;
+
+          // Header Row Style
+          if (R === 0) {
+              ws[cell_ref].s = {
+                  font: { bold: true, color: { rgb: "FFFFFF" } },
+                  fill: { fgColor: { rgb: "4F81BD" } },
+                  alignment: { horizontal: "center", vertical: "center" }
+              };
+          } else {
+             // Data Rows
+             // Apply Number Format to Amount Column (index 7)
+             if (C === 7) {
+                 ws[cell_ref].z = '"Rp" #,##0'; // Standard Excel Format String
+                 ws[cell_ref].s = { alignment: { horizontal: "right" } };
+             }
+             // Apply Center alignment to Date, Room, Period columns for better look
+             if ([0, 1, 5, 6].includes(C)) {
+                 if (!ws[cell_ref].s) ws[cell_ref].s = {};
+                 ws[cell_ref].s.alignment = { horizontal: "center" };
+             }
+          }
+          
+          // Last Row (Total) Style
+          if (R === range.e.r) {
+             ws[cell_ref].s = {
+                 font: { bold: true },
+                 fill: { fgColor: { rgb: "E2E8F0" } }
+             };
+             // Ensure format is also applied to total amount
+             if (C === 7) {
+                 ws[cell_ref].z = '"Rp" #,##0';
+                 ws[cell_ref].s.alignment = { horizontal: "right" };
+             }
+          }
+       }
+    }
 
     // Create Workbook
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Payments");
 
     // Write File
-    XLSX.writeFile(wb, `payment_history_${startDate}_to_${endDate}_page${page}.xlsx`);
+    let filename = 'Payment_History';
+    if (selectedBuilding) {
+        const building = buildings.find(b => b.id == selectedBuilding);
+        if (building) {
+            filename += `_${building.name.replace(/\s+/g, '_')}`;
+        }
+    }
+    filename += `_${startDate}_to_${endDate}.xlsx`;
+    
+    XLSX.writeFile(wb, filename);
   };
 
   // Responsive Pagination
@@ -97,32 +192,26 @@ function PaymentHistory() {
 
   useEffect(() => {
     const handleResize = () => {
-      // Standard mobile phone breakpoint (e.g. iPhone Pro Max is ~430px)
-      // Matching CSS media query for mobile devices
       setMaxVisiblePages(window.innerWidth <= 480 ? 3 : 5);
     };
-
-    // Initial check
     handleResize();
-
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const handlePageChange = (newPage) => {
     setPage(newPage);
-    // Scroll to top of the card or container for better UX
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
     <div className="container">
-      <h1>Payment History</h1>
+      <h1>{t('paymentHistory')}</h1>
 
       <div className="card">
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', marginBottom: '1rem', flexWrap: 'wrap' }}>
           <div className="form-group" style={{ marginBottom: 0, minWidth: '150px', flex: '1 1 200px' }}>
-            <label>From Date</label>
+            <label>{t('filterFrom')}</label>
             <input 
                 type="date" 
                 value={startDate} 
@@ -130,18 +219,33 @@ function PaymentHistory() {
             />
           </div>
           <div className="form-group" style={{ marginBottom: 0, minWidth: '150px', flex: '1 1 200px' }}>
-            <label>To Date</label>
+            <label>{t('filterTo')}</label>
             <input 
                 type="date" 
                 value={endDate} 
                 onChange={e => { setEndDate(e.target.value); setPage(1); }} 
             />
           </div>
-          <button className="btn btn-secondary" onClick={() => { setStartDate(''); setEndDate(''); setPage(1); }} style={{ flex: '0 0 auto' }}>
-            Clear Filters
+          
+          <div className="form-group" style={{ marginBottom: 0, minWidth: '150px', flex: '1 1 200px' }}>
+              <label>{t('building')}</label>
+              <select 
+                  value={selectedBuilding} 
+                  onChange={e => { setSelectedBuilding(e.target.value); setPage(1); }}
+                  style={{ width: '100%', padding: '0.6rem' }}
+              >
+                  <option value="">All Buildings</option>
+                  {buildings.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+              </select>
+          </div>
+
+          <button className="btn btn-secondary" onClick={() => { setStartDate(''); setEndDate(''); setSelectedBuilding(''); setPage(1); }} style={{ flex: '0 0 auto' }}>
+            {t('clearFilters')}
           </button>
           <button className="btn btn-success" onClick={exportToExcel} style={{ backgroundColor: 'var(--success-color)', color: 'white', marginLeft: 'auto', flex: '0 0 auto' }}>
-            Export to Excel
+            {t('exportExcel')}
           </button>
         </div>
 
@@ -158,12 +262,12 @@ function PaymentHistory() {
           gap: '1rem'
         }}>
           <div>
-            <h3 style={{ margin: 0, color: 'white' }}>Total Profit</h3>
+            <h3 style={{ margin: 0, color: 'white' }}>{t('totalProfit')}</h3>
             <span style={{ fontSize: '0.9rem', opacity: 0.9 }}>Based on current filters</span>
           </div>
           <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>
             {formatCurrency(totalProfit)}
-            <span style={{ fontSize: '1rem' }}> (Sum)</span>
+            <span style={{ fontSize: '1rem' }}> ({t('sum')})</span>
           </div>
         </div>
 
@@ -176,14 +280,14 @@ function PaymentHistory() {
           <table>
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Room</th>
-                <th>Building</th>
-                <th>Tenant</th>
-                <th>Method</th>
-                <th>Period</th>
-                <th>Amount</th>
-                <th>Action</th>
+                <th>{t('date')}</th>
+                <th>{t('room')}</th>
+                <th>{t('building')}</th>
+                <th>{t('tenant')}</th>
+                <th>{t('method')}</th>
+                <th>{t('period')}</th>
+                <th>{t('amount')}</th>
+                <th>{t('actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -195,8 +299,8 @@ function PaymentHistory() {
                   <td>{p.tenant_name}</td>
                   <td>
                     {p.payment_method === 'transfer' 
-                        ? `Transfer (${p.bank_name || '-'})` 
-                        : 'Cash'}
+                        ? `${t('transfer')} (${p.bank_name || '-'})` 
+                        : t('cash')}
                   </td>
                   <td>{formatDate(p.period_start)} - {formatDate(p.period_end)}</td>
                   <td>{formatCurrency(p.amount)}</td>
@@ -207,7 +311,7 @@ function PaymentHistory() {
                           style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
                           title="Download Receipt"
                       >
-                          🧾 Receipt
+                          🧾 {t('receipt')}
                       </button>
                   </td>
                 </tr>

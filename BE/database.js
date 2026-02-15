@@ -204,7 +204,9 @@ async function initDB() {
 
     // Migration: Enforce Case Sensitivity on Users Table
     try {
-        await db.query('ALTER TABLE users MODIFY username VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL UNIQUE');
+        // [FIX] Removed UNIQUE to prevent creating duplicate indexes on every restart.
+        // The UNIQUE constraint is preserved from creation or previous runs.
+        await db.query('ALTER TABLE users MODIFY username VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL');
         await db.query('ALTER TABLE users MODIFY password VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL');
         console.log('Enforced binary collation (Case Sensitivity) on users table.');
     } catch (err) {

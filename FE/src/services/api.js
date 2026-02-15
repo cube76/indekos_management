@@ -89,6 +89,9 @@ const apiService = {
   // Payments
   getPayments: (params) => api.get('/payments', { params }),
   recordPayment: (id, data) => api.post(`/payments/${id}`, data),
+
+  // Users
+  deleteUser: (id) => api.delete(`/auth/users/${id}`),
 };
 
 export default apiService;
