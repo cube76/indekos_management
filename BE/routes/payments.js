@@ -18,13 +18,13 @@ router.get('/', authenticateToken, async (req, res) => {
     const queryParams = [];
 
     if (startDate) {
-        whereClause += ' AND p.payment_date >= ?';
+        whereClause += ' AND p.period_start >= ?';
         queryParams.push(startDate);
     }
     
     if (endDate) {
         // Append time to include the entire end day
-        whereClause += ' AND p.payment_date <= ?';
+        whereClause += ' AND p.period_start <= ?';
         queryParams.push(`${endDate} 23:59:59`);
     }
 
@@ -52,7 +52,7 @@ router.get('/', authenticateToken, async (req, res) => {
       JOIN rooms r ON p.room_id = r.id 
       LEFT JOIN buildings b ON r.building_id = b.id
       WHERE 1=1 ${whereClause}
-      ORDER BY p.payment_date DESC
+      ORDER BY p.period_end DESC, p.payment_date DESC
       LIMIT ? OFFSET ?
     `;
     
@@ -97,7 +97,7 @@ router.get('/:roomId', authenticateToken, async (req, res) => {
        JOIN rooms r ON p.room_id = r.id
        LEFT JOIN buildings b ON r.building_id = b.id
        WHERE room_id = ? 
-       ORDER BY payment_date DESC 
+       ORDER BY period_end DESC, payment_date DESC 
        LIMIT ? OFFSET ?`, 
       [req.params.roomId, limit, offset]
     );

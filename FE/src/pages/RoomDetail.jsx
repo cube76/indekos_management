@@ -113,9 +113,26 @@ function RoomDetail() {
         end.setDate(0); // Snap to last day of previous month (Feb 28/29)
     }
 
+    // FIX: Use local time string construction instead of toISOString() (which is UTC)
+    // AND enforce Asia/Jakarta timezone as per requirement
+    const toLocalYMD = (d) => {
+        const options = {
+            timeZone: 'Asia/Jakarta',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        };
+        const formatter = new Intl.DateTimeFormat('id-ID', options);
+        const parts = formatter.formatToParts(d);
+        const year = parts.find(p => p.type === 'year').value;
+        const month = parts.find(p => p.type === 'month').value;
+        const day = parts.find(p => p.type === 'day').value;
+        return `${year}-${month}-${day}`;
+    };
+
     return {
-      start: start.toISOString().split('T')[0],
-      end: end.toISOString().split('T')[0]
+      start: toLocalYMD(start),
+      end: toLocalYMD(end)
     };
   };
 
@@ -264,7 +281,7 @@ function RoomDetail() {
     if (room.status !== 'filled') return false;
     
     // STRICT RULE: If overdue > 1 month, disable payment (Must Move Out)
-    if (isSevereOverdue()) return false;
+    // if (isSevereOverdue()) return false; // DISABLED: Allow payment anytime
 
     if (room.isOverdue) return true;
 
@@ -415,26 +432,26 @@ function RoomDetail() {
             <table>
               <thead>
                 <tr>
-                  <th>{t('dateRecorded')}</th>
                   <th>{t('tenant')}</th>
                   <th>{t('period')}</th>
-                  <th>{t('amount')}</th>
+                  <th>{t('dateRecorded')}</th>
                   <th>{t('method')}</th>
+                  <th>{t('amount')}</th>
                   <th>{t('action')}</th>
                 </tr>
               </thead>
               <tbody>
                 {history.map(p => (
                   <tr key={p.id}>
-                    <td>{formatDate(p.payment_date)}</td>
                     <td>{p.tenant_name || '-'}</td>
                     <td>{formatDate(p.period_start)} - {formatDate(p.period_end)}</td>
-                    <td>{formatCurrency(p.amount)}</td>
+                    <td>{formatDate(p.payment_date)}</td>
                     <td>
                         {p.payment_method === 'transfer' 
                             ? `${t('transfer')} (${p.bank_name || '-'})` 
                             : t('cash')}
                     </td>
+                    <td>{formatCurrency(p.amount)}</td>
                     <td>
                         <button 
                             onClick={() => generateReceipt(p, room)}

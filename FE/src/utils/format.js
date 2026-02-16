@@ -29,16 +29,36 @@ export const formatDate = (dateString, includeTime = false) => {
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return '-';
 
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
+  const options = {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: 'Asia/Jakarta' // Enforce timezone
+  };
 
+  if (includeTime) {
+    options.hour = '2-digit';
+    options.minute = '2-digit';
+    options.hour12 = false;
+  }
+
+  // Intl.DateTimeFormat returns "dd/MM/yyyy" or similar depending on locale.
+  // We want "DD-MM-YYYY".
+  // 'id-ID' locale usually uses dd/MM/yyyy.
+  const formatter = new Intl.DateTimeFormat('id-ID', options);
+  const parts = formatter.formatToParts(date);
+  
+  const day = parts.find(p => p.type === 'day').value;
+  const month = parts.find(p => p.type === 'month').value;
+  const year = parts.find(p => p.type === 'year').value;
+  
   let result = `${day}-${month}-${year}`;
 
   if (includeTime) {
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    result += ` ${hours}:${minutes}`;
+    const hour = parts.find(p => p.type === 'hour').value;
+    const minute = parts.find(p => p.type === 'minute').value;
+    // Handle the case where separator might be different or missing in parts
+    result += ` ${hour}:${minute}`;
   }
 
   return result;

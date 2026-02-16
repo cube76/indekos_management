@@ -2,6 +2,12 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
+if (process.env.TZ) {
+    process.env.TZ = process.env.TZ; 
+} else {
+    process.env.TZ = 'Asia/Jakarta'; // Default fallback
+}
+
 const { initDB } = require('./database');
 const router = require('express').Router();
 const swaggerUi = require('swagger-ui-express');

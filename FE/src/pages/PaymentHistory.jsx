@@ -79,112 +79,132 @@ function PaymentHistory() {
     }
   };
   
-  const exportToExcel = () => {
-    if (payments.length === 0) return alert('No data to export');
+  const exportToExcel = async () => {
+    setLoading(true);
+    try {
+        const params = {
+            page: 1,
+            limit: 10000,
+            startDate,
+            endDate,
+            building_id: selectedBuilding
+        };
+        
+        const res = await api.get('/payments', { params });
+        const allPayments = res.data.data || res.data;
 
-    // Format data for Excel
-    const dataToExport = payments.map(p => ({
-        [t('date')]: formatDate(p.payment_date, true),
-        [t('room')]: p.room_number,
-        [t('building')]: p.building_name,
-        [t('tenant')]: p.tenant_name || '',
-        [t('method')]: p.payment_method === 'transfer' ? `Transfer (${p.bank_name || '-'})` : t('cash'),
-        [t('periodStart')]: formatDate(p.period_start),
-        [t('periodEnd')]: formatDate(p.period_end),
-        [t('amount')]: parseFloat(p.amount)
-    }));
-
-    // Add Total Row
-    // We want the total to be under the Amount column.
-    // Calculate empty keys for alignment
-    const totalRow = {
-        [t('date')]: '',
-        [t('room')]: '',
-        [t('building')]: '',
-        [t('tenant')]: '',
-        [t('method')]: '',
-        [t('periodStart')]: '',
-        [t('periodEnd')]: t('sum').toUpperCase(),
-        [t('amount')]: parseFloat(totalProfit) // Using totalProfit from meta which respects filter
-    };
-    dataToExport.push(totalRow);
-
-    // Create Worksheet
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    
-    // Auto-width columns
-    const wscols = [
-        {wch: 20}, // Date
-        {wch: 10}, // Room
-        {wch: 15}, // Building
-        {wch: 20}, // Tenant
-        {wch: 20}, // Method
-        {wch: 15}, // Start
-        {wch: 15}, // End
-        {wch: 15}  // Amount
-    ];
-    ws['!cols'] = wscols;
-
-    // Apply Styles
-    const range = XLSX.utils.decode_range(ws['!ref']);
-    for (let R = range.s.r; R <= range.e.r; ++R) {
-       for (let C = range.s.c; C <= range.e.c; ++C) {
-          const cell_address = {c:C, r:R};
-          const cell_ref = XLSX.utils.encode_cell(cell_address);
-          
-          if (!ws[cell_ref]) continue;
-
-          // Header Row Style
-          if (R === 0) {
-              ws[cell_ref].s = {
-                  font: { bold: true, color: { rgb: "FFFFFF" } },
-                  fill: { fgColor: { rgb: "4F81BD" } },
-                  alignment: { horizontal: "center", vertical: "center" }
-              };
-          } else {
-             // Data Rows
-             // Apply Number Format to Amount Column (index 7)
-             if (C === 7) {
-                 ws[cell_ref].z = '"Rp" #,##0'; // Standard Excel Format String
-                 ws[cell_ref].s = { alignment: { horizontal: "right" } };
-             }
-             // Apply Center alignment to Date, Room, Period columns for better look
-             if ([0, 1, 5, 6].includes(C)) {
-                 if (!ws[cell_ref].s) ws[cell_ref].s = {};
-                 ws[cell_ref].s.alignment = { horizontal: "center" };
-             }
-          }
-          
-          // Last Row (Total) Style
-          if (R === range.e.r) {
-             ws[cell_ref].s = {
-                 font: { bold: true },
-                 fill: { fgColor: { rgb: "E2E8F0" } }
-             };
-             // Ensure format is also applied to total amount
-             if (C === 7) {
-                 ws[cell_ref].z = '"Rp" #,##0';
-                 ws[cell_ref].s.alignment = { horizontal: "right" };
-             }
-          }
-       }
-    }
-
-    // Create Workbook
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Payments");
-
-    // Write File
-    let filename = 'Payment_History';
-    if (selectedBuilding) {
-        const building = buildings.find(b => b.id == selectedBuilding);
-        if (building) {
-            filename += `_${building.name.replace(/\s+/g, '_')}`;
+        if (allPayments.length === 0) {
+            alert('No data to export');
+            return;
         }
+
+        // Format data for Excel
+        const dataToExport = allPayments.map(p => ({
+            [t('building')]: p.building_name,
+            [t('room')]: p.room_number,
+            [t('tenant')]: p.tenant_name || '',
+            [t('period')]: `${formatDate(p.period_start)} - ${formatDate(p.period_end)}`,
+            [t('date')]: formatDate(p.payment_date, true),
+            [t('method')]: p.payment_method === 'transfer' ? `Transfer (${p.bank_name || '-'})` : t('cash'),
+            [t('amount')]: parseFloat(p.amount)
+        }));
+
+        // Add Total Row
+        // Total is under Amount (Index 6)
+        const totalRow = {
+            [t('building')]: '',
+            [t('room')]: '',
+            [t('tenant')]: '',
+            [t('period')]: '',
+            [t('date')]: '',
+            [t('method')]: t('sum').toUpperCase(),
+            [t('amount')]: parseFloat(totalProfit)
+        };
+        dataToExport.push(totalRow);
+
+        // Create Worksheet
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        
+        // Auto-width columns
+        const wscols = [
+            {wch: 15}, // Building
+            {wch: 10}, // Room
+            {wch: 20}, // Tenant
+            {wch: 25}, // Period
+            {wch: 20}, // Date
+            {wch: 20}, // Method
+            {wch: 15}  // Amount
+        ];
+        ws['!cols'] = wscols;
+
+        // Apply Styles
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        for (let R = range.s.r; R <= range.e.r; ++R) {
+           for (let C = range.s.c; C <= range.e.c; ++C) {
+              const cell_address = {c:C, r:R};
+              const cell_ref = XLSX.utils.encode_cell(cell_address);
+              
+              if (!ws[cell_ref]) continue;
+
+              // Header Row Style
+              if (R === 0) {
+                  ws[cell_ref].s = {
+                      font: { bold: true, color: { rgb: "FFFFFF" } },
+                      fill: { fgColor: { rgb: "4F81BD" } },
+                      alignment: { horizontal: "center", vertical: "center" }
+                  };
+              } else {
+                 // Data Rows
+                 // Apply Number Format to Amount Column (index 6, moved from 5)
+                 if (C === 6) {
+                     ws[cell_ref].z = '"Rp" #,##0'; // Standard Excel Format String
+                     ws[cell_ref].s = { alignment: { horizontal: "right" } };
+                 }
+                 // Apply Center alignment to Date, Room, Period columns for better look
+                 // Building(0), Room(1), Period(3), Date(4)
+                 if ([0, 1, 3, 4].includes(C)) {
+                     if (!ws[cell_ref].s) ws[cell_ref].s = {};
+                     ws[cell_ref].s.alignment = { horizontal: "center" };
+                 }
+              }
+              
+              // Last Row (Total) Style
+              if (R === range.e.r) {
+                 ws[cell_ref].s = {
+                     font: { bold: true },
+                     fill: { fgColor: { rgb: "E2E8F0" } }
+                 };
+                 // Ensure format is also applied to total amount
+                 if (C === 6) {
+                     ws[cell_ref].z = '"Rp" #,##0';
+                     ws[cell_ref].s.alignment = { horizontal: "right" };
+                 }
+              }
+           }
+        }
+
+        // Create Workbook
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Payments");
+
+        // Write File
+        let filename = 'Payment_History';
+        if (selectedBuilding) {
+            const building = buildings.find(b => b.id == selectedBuilding);
+            if (building) {
+                filename += `_${building.name.replace(/\s+/g, '_')}`;
+            }
+        }
+        filename += `_${startDate}_to_${endDate}.xlsx`;
+        
+        XLSX.writeFile(wb, filename);
+
+    } catch (error) {
+        console.error("Export failed", error);
+        alert("Export failed");
+    } finally {
+        setLoading(false);
     }
-    filename += `_${startDate}_to_${endDate}.xlsx`;
-    
-    XLSX.writeFile(wb, filename);
   };
 
   // Responsive Pagination
@@ -280,12 +300,12 @@ function PaymentHistory() {
           <table>
             <thead>
               <tr>
-                <th>{t('date')}</th>
-                <th>{t('room')}</th>
                 <th>{t('building')}</th>
+                <th>{t('room')}</th>
                 <th>{t('tenant')}</th>
-                <th>{t('method')}</th>
                 <th>{t('period')}</th>
+                <th>{t('date')}</th>
+                <th>{t('method')}</th>
                 <th>{t('amount')}</th>
                 <th>{t('actions')}</th>
               </tr>
@@ -293,16 +313,16 @@ function PaymentHistory() {
             <tbody>
               {payments.map((p) => (
                 <tr key={p.id}>
-                  <td>{formatDate(p.payment_date, true)}</td>
-                  <td>{p.room_number}</td>
                   <td>{p.building_name}</td>
+                  <td>{p.room_number}</td>
                   <td>{p.tenant_name}</td>
+                  <td>{formatDate(p.period_start)} - {formatDate(p.period_end)}</td>
+                  <td>{formatDate(p.payment_date, true)}</td>
                   <td>
                     {p.payment_method === 'transfer' 
                         ? `${t('transfer')} (${p.bank_name || '-'})` 
                         : t('cash')}
                   </td>
-                  <td>{formatDate(p.period_start)} - {formatDate(p.period_end)}</td>
                   <td>{formatCurrency(p.amount)}</td>
                   <td>
                       <button 
