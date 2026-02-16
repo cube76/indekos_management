@@ -79,7 +79,7 @@ const checkOverdueAndNotify = async (isManual = false) => {
         const messagePayload = JSON.stringify({
             title: 'Indekos Manager',
             body: bodyText,
-            icon: '/logo.jpg'
+            icon: '/logo.svg'
         });
 
         // Get all subscriptions
