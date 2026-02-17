@@ -144,7 +144,7 @@ function Navbar() {
                   display: 'flex',
                   alignItems: 'center'
               }}
-              title={notifPermission === 'granted' ? 'Notifications Enabled' : t('enableNotif')}
+              title={notifPermission === 'granted' ? t('notificationsEnabled') : t('enableNotif')}
             >
               {notifPermission === 'granted' ? <Bell size={20} /> : <BellOff size={20} />}
             </button>
@@ -238,7 +238,7 @@ function Navbar() {
               }}
             >
               {notifPermission === 'granted' ? <Bell size={20} /> : <BellOff size={20} />}
-              <span>{notifPermission === 'granted' ? 'Notifications On' : 'Enable Notifications'}</span>
+              <span>{notifPermission === 'granted' ? t('notificationsOn') : t('enableNotif')}</span>
             </button>
 
             <button 

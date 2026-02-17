@@ -395,7 +395,7 @@ function RoomDetail() {
                     <button 
                         onClick={handleGenerateInvoice} 
                         className="btn btn-secondary" 
-                        style={{ flex: '1 1 auto', backgroundColor: '#64748b', borderColor: '#64748b' }}
+                        style={{ flex: '1 1 auto', backgroundColor: '#64748b', borderColor: '#64748b', color: 'white' }}
                     >
                         📄 {t('invoiceBtn')}
                     </button>

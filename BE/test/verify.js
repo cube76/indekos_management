@@ -3,7 +3,7 @@ const assert = require('assert');
 
 const util = require('util');
 require('dotenv').config({ path: '../.env' });
-const API_URL = process.env.URL_BASE || 'http://localhost:3001';
+const API_URL = process.env.URL_BASE;
 const SUPER_ADMIN = { username: 'admin', password: 'equali' };
 const NEW_USER = { username: 'testuser', password: 'password123' };
 

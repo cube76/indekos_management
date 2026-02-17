@@ -14,7 +14,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerDocument = require('./swagger.json');
 
 const app = express();
-const PORT = process.env.PORT || 3693; // Changed default to 3693 as verified
+const PORT = process.env.PORT;
 
 app.use(cors());
 app.use(express.json());

@@ -100,7 +100,7 @@ const generateDocument = async (payment, room, type) => {
   }
 
   // Right Side: TITLE (KWITANSI or INVOICE)
-  const titleText = type === 'INVOICE' ? 'INVOICE' : 'KWITANSI';
+  const titleText = type === 'INVOICE' ? 'TAGIHAN' : 'KWITANSI';
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(32);
   doc.setTextColor(...DARK_GREY);
@@ -127,13 +127,17 @@ const generateDocument = async (payment, room, type) => {
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100);
-  doc.text('Bill To:', margin, y);
-  doc.text('Ship To:', midPoint - 40, y); // Simulated 2nd small column
+  doc.text('Kepada:', margin, y);
+  doc.text('Lokasi:', midPoint - 50, y); // Simulated 2nd small column
 
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...BLACK);
-  doc.text(payment.tenant_name || room.tenant_name || '-', margin, y + 6);
-  doc.text(room.building_name || '-', midPoint - 40, y + 6);
+  
+  const tenantName = payment.tenant_name || room.tenant_name || '-';
+  const tenantNameWidth = (midPoint - 50) - margin - 5;
+  const splitTenantName = doc.splitTextToSize(tenantName, tenantNameWidth);
+  doc.text(splitTenantName, margin, y + 6);
+  doc.text(room.building_name || '-', midPoint - 50, y + 6);
   
   // RIGHT COLUMN (Date, Payment Terms, Balance Due)
   let ry = y;
@@ -144,19 +148,25 @@ const generateDocument = async (payment, room, type) => {
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100);
   
-  doc.text('Date:', rLabelX, ry, { align: 'right' });
+  doc.text('Tanggal:', rLabelX, ry, { align: 'right' });
   doc.setTextColor(...BLACK);
   // For Invoice, Date is today or due date? Usually today (generation date).
   doc.text(formatDate(payment.payment_date || new Date()), rValueX, ry, { align: 'right' });
   
   ry += 7;
   doc.setTextColor(100);
-  doc.text('Payment Terms:', rLabelX, ry, { align: 'right' });
+  doc.text('Metode Pembayaran:', rLabelX, ry, { align: 'right' });
   doc.setTextColor(...BLACK);
   
-  const paymentMethodText = payment.payment_method === 'transfer' 
-    ? `Transfer - ${payment.bank_name || 'Bank'}` 
-    : 'Cash';
+  let paymentMethodText;
+  
+  if (type === 'INVOICE') {
+      paymentMethodText = 'Tunai/Transfer';
+  } else {
+      paymentMethodText = payment.payment_method === 'transfer' 
+        ? `Transfer - ${payment.bank_name || 'Bank'}` 
+        : 'Tunai';
+  }
   doc.text(paymentMethodText, rValueX, ry, { align: 'right' });
 
   ry += 12;
@@ -168,7 +178,7 @@ const generateDocument = async (payment, room, type) => {
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...BLACK);
   // Vertically centered in the box (ry is the baseline)
-  doc.text('Balance Due:', rLabelX, ry, { align: 'right' });
+  doc.text('Total Tagihan:', rLabelX, ry, { align: 'right' });
   doc.text(formatCurrency(payment.amount), rValueX, ry, { align: 'right' });
 
   // --- 3. Table ---
@@ -188,10 +198,10 @@ const generateDocument = async (payment, room, type) => {
   const col3 = pageWidth - margin - 50; // Rate
   const col4 = pageWidth - margin - 5;  // Amount (Right aligned)
 
-  doc.text('Item', col1, y + 7);
-  doc.text('Quantity', col2, y + 7);
-  doc.text('Rate', col3, y + 7, { align: 'right'});
-  doc.text('Amount', col4, y + 7, { align: 'right'});
+  doc.text('Deskripsi', col1, y + 7);
+  doc.text('Jml', col2, y + 7);
+  doc.text('Harga', col3, y + 7, { align: 'right'});
+  doc.text('Total', col4, y + 7, { align: 'right'});
 
   // Row
   y += tableH + 8;
@@ -221,7 +231,7 @@ const generateDocument = async (payment, room, type) => {
   doc.text(formatCurrency(payment.amount), footerValueX, y, { align: 'right' });
 
   y += fy;
-  doc.text('Tax (0%):', footerLabelX, y, { align: 'right' });
+  doc.text('Pajak (0%):', footerLabelX, y, { align: 'right' });
   doc.text('IDR 0.00', footerValueX, y, { align: 'right' });
 
   y += fy;
@@ -237,7 +247,7 @@ const generateDocument = async (payment, room, type) => {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.setTextColor(100);
-  doc.text('Notes:', margin, bottomY);
+  doc.text('Catatan:', margin, bottomY);
   
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...BLACK);
@@ -266,7 +276,7 @@ const generateDocument = async (payment, room, type) => {
 
   const termsY = bottomY + 15 + (splitNotes.length * 4);
   doc.setTextColor(100);
-  doc.text('Terms:', margin, termsY);
+  doc.text('Ketentuan:', margin, termsY);
   doc.setTextColor(...BLACK);
   
   const splitTerms = doc.splitTextToSize(termsContent, pageWidth - margin * 2);

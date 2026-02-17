@@ -73,13 +73,14 @@ const checkOverdueAndNotify = async (isManual = false) => {
     // 4. Send Notification (VAPID)
       if (overdueRooms.length > 0 || dueSoonRooms.length > 0) {
         let bodyText = '';
-        if (dueSoonRooms.length > 0) bodyText += `${dueSoonRooms.length} rooms due soon. `;
-        if (overdueRooms.length > 0) bodyText += `${overdueRooms.length} rooms OVERDUE!`;
+        if (dueSoonRooms.length > 0) bodyText += `${dueSoonRooms.length} kamar segera jatuh tempo. `;
+        if (overdueRooms.length > 0) bodyText += `${overdueRooms.length} kamar terlambat bayar!`;
 
         const messagePayload = JSON.stringify({
             title: 'Indekos Manager',
             body: bodyText,
-            icon: '/logo.svg'
+            icon: '/logo.png',
+            badge: '/notification_badge.png'
         });
 
         // Get all subscriptions
@@ -119,7 +120,7 @@ function startReminders() {
   // Run every day at 09:00 AM
   cron.schedule('0 9 * * *', checkOverdueAndNotify, {
     scheduled: true,
-    timezone: "Asia/Jakarta"
+    timezone: process.env.TZ
   });
   console.log('Payment reminder cron job scheduled.');
 }

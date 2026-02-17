@@ -76,6 +76,8 @@ export const translations = {
     enableNotifDesc: "Izinkan notifikasi untuk mendapatkan pengingat pembayaran.",
     allow: "Izinkan",
     later: "Nanti",
+    notificationsEnabled: "Notifikasi Aktif",
+    notificationsOn: "Notifikasi Aktif",
     // Dashboard Extra
     paymentStatus: "Status Pembayaran",
     view: "Lihat",
@@ -232,6 +234,8 @@ export const translations = {
     enableNotifDesc: "Allow notifications to get payment reminders.",
     allow: "Allow",
     later: "Later",
+    notificationsEnabled: "Notifications Enabled",
+    notificationsOn: "Notifications On",
 
     // Dashboard Extra
     paymentStatus: "Payment Status",

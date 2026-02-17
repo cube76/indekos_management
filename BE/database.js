@@ -3,11 +3,11 @@ const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
 const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
+  host: process.env.DB_HOST,
   port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || 'password',
-  database: process.env.DB_NAME || 'residence_db',
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
@@ -216,8 +216,8 @@ async function initDB() {
     // Seed Super Admin
     const [rows] = await db.query('SELECT * FROM users WHERE role = ?', ['superadmin']);
     if (rows.length === 0) {
-      const username = process.env.SUPER_ADMIN_USERNAME || 'admin';
-      const password = process.env.SUPER_ADMIN_PASSWORD || 'admin';
+      const username = process.env.SUPER_ADMIN_USERNAME;
+      const password = process.env.SUPER_ADMIN_PASSWORD;
       const hashedPassword = await bcrypt.hash(password, 10);
       
       await db.query('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', 
