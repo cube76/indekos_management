@@ -125,16 +125,45 @@ router.post('/:roomId', authenticateToken, async (req, res) => {
   }
 
   try {
-    // Fetch room to get current tenant name
-    const [rooms] = await db.query('SELECT tenant_name FROM rooms WHERE id = ?', [req.params.roomId]);
+    // Fetch room to get current tenant name and building name
+    const [rooms] = await db.query(
+      `SELECT r.tenant_name, b.name as building_name 
+       FROM rooms r 
+       LEFT JOIN buildings b ON r.building_id = b.id 
+       WHERE r.id = ?`, 
+      [req.params.roomId]
+    );
     const tenantName = rooms.length > 0 ? rooms[0].tenant_name : null;
+    const buildingName = rooms.length > 0 && rooms[0].building_name ? rooms[0].building_name : 'RES';
+    
+    let buildingCode = 'RES';
+    const bNameLower = buildingName.toLowerCase();
+    if (bNameLower.includes('humah')) buildingCode = 'F4';
+    else if (bNameLower.includes('umae')) buildingCode = 'UB';
+    else buildingCode = buildingName.substring(0, 3).toUpperCase();
 
     // Default to NOW if not provided
     const paidAt = payment_date ? new Date(payment_date) : new Date();
 
+    // Calculate receipt number
+    const currentMonth = paidAt.getMonth() + 1;
+    const currentYear = paidAt.getFullYear();
+    const [countResult] = await db.query(`
+      SELECT COUNT(*) as total
+      FROM payments p
+      JOIN rooms r ON p.room_id = r.id
+      LEFT JOIN buildings b ON r.building_id = b.id
+      WHERE MONTH(p.payment_date) = ? AND YEAR(p.payment_date) = ? AND b.name = ?
+    `, [currentMonth, currentYear, buildingName]);
+    
+    const seq = countResult[0].total + 1;
+    const seqStr = String(seq).padStart(5, '0');
+    const monthStr = String(currentMonth).padStart(2, '0');
+    const receiptNumber = `# ${currentYear}/KWT${buildingCode}/${monthStr}/${seqStr}`;
+
     await db.query(
-      'INSERT INTO payments (room_id, tenant_name, amount, period_start, period_end, payment_date, payment_method, bank_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [req.params.roomId, tenantName, amount, new Date(period_start), new Date(period_end), paidAt, payment_method || 'cash', bank_name || null]
+      'INSERT INTO payments (room_id, tenant_name, amount, period_start, period_end, payment_date, payment_method, bank_name, receipt_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [req.params.roomId, tenantName, amount, new Date(period_start), new Date(period_end), paidAt, payment_method || 'cash', bank_name || null, receiptNumber]
     );
     res.status(201).send('Payment recorded');
   } catch (error) {

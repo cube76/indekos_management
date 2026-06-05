@@ -202,6 +202,88 @@ async function initDB() {
         }
     }
 
+    // Migration: Add receipt_number
+    try {
+        await db.query('SELECT receipt_number FROM payments LIMIT 1');
+    } catch (err) {
+        if (err.code === 'ER_BAD_FIELD_ERROR') {
+            console.log('Migrating: Adding receipt_number to payments table...');
+            await db.query('ALTER TABLE payments ADD COLUMN receipt_number VARCHAR(100)');
+        }
+    }
+
+    // Migration: Backfill receipt_number for old payments
+    try {
+        const [oldPayments] = await db.query(`
+            SELECT p.id, p.payment_date, r.building_id, b.name as building_name 
+            FROM payments p 
+            JOIN rooms r ON p.room_id = r.id 
+            LEFT JOIN buildings b ON r.building_id = b.id 
+            WHERE p.receipt_number IS NULL 
+               OR p.receipt_number = '' 
+               OR p.receipt_number LIKE '%KWTHUM%' 
+               OR p.receipt_number LIKE '%KWTUMA%'
+               OR p.receipt_number NOT LIKE '%00%'
+            ORDER BY p.payment_date ASC
+        `);
+        
+        if (oldPayments.length > 0) {
+            console.log('Migrating: Backfilling receipt_number for older payments...');
+            const counters = {};
+            for (const p of oldPayments) {
+                const date = new Date(p.payment_date);
+                const month = date.getMonth() + 1;
+                const year = date.getFullYear();
+                const bName = p.building_name || 'RES';
+                
+                let bCode = 'RES';
+                const bNameLower = bName.toLowerCase();
+                if (bNameLower.includes('humah')) bCode = 'F4';
+                else if (bNameLower.includes('umae')) bCode = 'UB';
+                else bCode = bName.substring(0, 3).toUpperCase();
+                
+                const key = `${year}-${month}-${bName}`;
+                if (counters[key] === undefined) {
+                    const [existingCount] = await db.query(`
+                        SELECT COUNT(*) as c FROM payments p 
+                        JOIN rooms r ON p.room_id = r.id 
+                        LEFT JOIN buildings b ON r.building_id = b.id 
+                        WHERE MONTH(p.payment_date)=? AND YEAR(p.payment_date)=? AND b.name=? 
+                        AND p.receipt_number IS NOT NULL AND p.receipt_number != ''
+                    `, [month, year, bName]);
+                    counters[key] = existingCount[0].c;
+                }
+                
+                counters[key]++;
+                const seq = counters[key];
+                const seqStr = String(seq).padStart(5, '0');
+                const monthStr = String(month).padStart(2, '0');
+                const receiptNum = `# ${year}/KWT${bCode}/${monthStr}/${seqStr}`;
+                
+                await db.query('UPDATE payments SET receipt_number = ? WHERE id = ?', [receiptNum, p.id]);
+            }
+            console.log(`Backfilled ${oldPayments.length} payments with correct receipt numbers.`);
+        }
+    } catch (err) {
+        console.error('Failed to backfill receipt_number:', err);
+    }
+
+    // Create Invoices Table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS invoices (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        room_id INT NOT NULL,
+        tenant_name VARCHAR(255),
+        amount INT NOT NULL,
+        invoice_number VARCHAR(100) NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        period_start DATETIME NOT NULL,
+        period_end DATETIME NOT NULL,
+        FOREIGN KEY (room_id) REFERENCES rooms(id)
+      )
+    `);
+    console.log('Invoices table checked/created.');
+
     // Migration: Enforce Case Sensitivity on Users Table
     try {
         // [FIX] Removed UNIQUE to prevent creating duplicate indexes on every restart.

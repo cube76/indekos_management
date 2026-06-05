@@ -26,12 +26,14 @@ initDB();
 const authRoutes = require('./routes/auth');
 const roomRoutes = require('./routes/rooms');
 const paymentRoutes = require('./routes/payments');
+const invoiceRoutes = require('./routes/invoices');
 const { startReminders } = require('./cron/reminders');
 
 app.use('/auth', authRoutes);
 app.use('/rooms', roomRoutes);
 app.use('/buildings', require('./routes/buildings'));
 app.use('/payments', paymentRoutes);
+app.use('/invoices', invoiceRoutes);
 app.use('/notifications', require('./routes/notifications'));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 

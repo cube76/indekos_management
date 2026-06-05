@@ -90,7 +90,7 @@ export const translations = {
     confirmForceMoveOutTitle: "Konfirmasi Paksa Keluar",
     confirmMoveOutMsg: "Apakah Anda yakin ingin memproses kepindahan ini? Tindakan ini tidak dapat dibatalkan.",
     statusCritical: "Status Kritis",
-    statusCriticalMsg: "Penyewa terlambat membayar lebih dari 1 bulan. Pembayaran dinonaktifkan. Anda harus mengeluarkan mereka.",
+    statusCriticalMsg: "Penyewa terlambat membayar lebih dari 2 bulan. Pembayaran dinonaktifkan. Anda harus mengeluarkan mereka.",
     forceMoveOutBtn: "⚠️ Paksa Keluar (Usir)",
     moveOutBtn: "Pindah Keluar",
     assignTenantBtn: "Tetapkan Penyewa",

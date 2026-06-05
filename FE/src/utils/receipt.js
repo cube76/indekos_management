@@ -106,11 +106,27 @@ const generateDocument = async (payment, room, type) => {
   doc.setTextColor(...DARK_GREY);
   doc.text(titleText, pageWidth - margin, 35, { align: 'right' }); // Fixed Y=35
 
-  // Receipt/Invoice Number
-  const buildingCode = (room.building_name || 'RES').substring(0, 3).toUpperCase();
-  const idSuffix = payment.id ? String(payment.id).padStart(5, '0') : 'XXXXX';
-  const typeCode = type === 'INVOICE' ? 'INV' : 'PYM';
-  const numberStr = `# ${new Date().getFullYear()}/${buildingCode}/${typeCode}/${idSuffix}`;
+  const buildingName = room.building_name || 'RES';
+  let buildingCode = 'RES';
+  const bNameLower = buildingName.toLowerCase();
+  if (bNameLower.includes('humah')) buildingCode = 'F4';
+  else if (bNameLower.includes('umae')) buildingCode = 'UB';
+  else buildingCode = buildingName.substring(0, 3).toUpperCase();
+  
+  const typeCode = type === 'INVOICE' ? 'INV' : 'KWT';
+  
+  const fallbackDate = new Date(payment.payment_date || Date.now());
+  const yearStr = fallbackDate.getFullYear();
+  const monthStr = String(fallbackDate.getMonth() + 1).padStart(2, '0');
+  
+  // Explicitly avoid using ID for the monthly sequence. 
+  // If the backend has not yet generated a receipt_number (e.g. server not restarted yet),
+  // fallback clearly to dashes instead of inserting a database ID.
+  const fallbackNumberStr = `# ${yearStr}/${typeCode}${buildingCode}/${monthStr}/--`;
+  
+  const numberStr = type === 'INVOICE' 
+    ? (payment.invoice_number || fallbackNumberStr)
+    : (payment.receipt_number || fallbackNumberStr);
 
   doc.setFontSize(10);
   doc.setTextColor(100);

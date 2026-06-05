@@ -178,17 +178,23 @@ function RoomDetail() {
     });
   };
 
-  const handleGenerateInvoice = () => {
-    const { start, end } = getNextPeriod();
-    const predictedPayment = {
-        id: 'DRAFT', // No ID yet
-        amount: room.price,
-        tenant_name: room.tenant_name,
-        payment_date: new Date(), // Invoice Date = Today
-        period_start: start,
-        period_end: end
-    };
-    generateInvoice(predictedPayment, room);
+  const handleGenerateInvoice = async () => {
+    setIsSubmitting(true);
+    try {
+        const { start, end } = getNextPeriod();
+        const res = await api.post(`/invoices/${id}`, {
+             amount: room.price,
+             period_start: start,
+             period_end: end
+        });
+        const generatedInvoice = res.data;
+        generateInvoice(generatedInvoice, room);
+    } catch (error) {
+        console.error(error);
+        alert('Failed to generate invoice: ' + (error.response?.data || error.message));
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   // --- Central Action Handler ---
@@ -337,7 +343,7 @@ function RoomDetail() {
           </div>
           <div style={{display:'flex', gap:'0.5rem'}}>
              <span className={`status-badge ${room.status === 'filled' ? 'status-filled' : 'status-empty'}`}>
-                {room.status.toUpperCase()}
+                {room.status === 'filled' ? t('filled') : t('empty')}
             </span>
             {room.status === 'filled' && (
                <>
