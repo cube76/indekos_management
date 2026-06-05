@@ -23,11 +23,19 @@ const ProtectedRoute = ({ children }) => {
   React.useEffect(() => {
     // 1. Initial SW Registration (Global)
     if ('serviceWorker' in navigator) {
+      // 1. First, clear out any old ghosts
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister();
+        }
+      }).then(() => {
+        // 2. Then, safely register your brand new Service Worker
         navigator.serviceWorker.register('/sw.js')
-        .then(registration => {
-            console.log('SW Registered');
-        })
-        .catch(err => console.error('SW Error:', err));
+          .then(registration => {
+              console.log('NEW Service Worker Registered successfully!');
+          })
+          .catch(err => console.error('SW Error:', err));
+      });
     }
 
     const verifyToken = async () => {
