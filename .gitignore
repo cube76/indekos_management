@@ -1,0 +1,17 @@
+FE/.env
+BE/.env
+
+# Dependency directories
+BE/node_modules/
+vendor/
+
+# Environment variables and secrets (Never commit passwords!)
+.env
+config-db.php
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
