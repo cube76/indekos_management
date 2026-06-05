@@ -298,8 +298,11 @@ const generateDocument = async (payment, room, type) => {
   const splitTerms = doc.splitTextToSize(termsContent, pageWidth - margin * 2);
   doc.text(splitTerms, margin, termsY + 5);
 
-  // Open
-  window.open(doc.output('bloburl'), '_blank');
+  const safeNumberStr = numberStr.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  const filename = `${type === 'INVOICE' ? 'Invoice' : 'Kwitansi'}_${safeNumberStr}.pdf`;
+
+  const blob = doc.output('blob');
+  return { blob, filename };
 };
 
 export const generateReceipt = (payment, room) => {

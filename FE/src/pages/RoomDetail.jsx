@@ -4,6 +4,7 @@ import api, { API_BASE_URL } from '../services/api';
 import { formatDate, formatCurrency, formatInputPrice, parseInputPrice } from '../utils/format';
 import { generateReceipt, generateInvoice } from '../utils/receipt';
 import Modal from '../components/Modal';
+import PdfPreviewModal from '../components/PdfPreviewModal';
 import { useLanguage } from '../context/LanguageContext';
 
 function RoomDetail() {
@@ -17,6 +18,8 @@ function RoomDetail() {
   // Modal State
   const [modal, setModal] = useState({ isOpen: false, title: '', type: '', data: null });
   const [successModal, setSuccessModal] = useState({ isOpen: false, message: '' });
+  const [pdfData, setPdfData] = useState(null);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
 
   // Payment Form State
   const [amount, setAmount] = useState('');
@@ -188,12 +191,24 @@ function RoomDetail() {
              period_end: end
         });
         const generatedInvoice = res.data;
-        generateInvoice(generatedInvoice, room);
+        const data = await generateInvoice(generatedInvoice, room);
+        setPdfData(data);
+        setIsPdfModalOpen(true);
     } catch (error) {
         console.error(error);
         alert('Failed to generate invoice: ' + (error.response?.data || error.message));
     } finally {
         setIsSubmitting(false);
+    }
+  };
+
+  const handleGenerateReceipt = async (payment, room) => {
+    try {
+      const data = await generateReceipt(payment, room);
+      setPdfData(data);
+      setIsPdfModalOpen(true);
+    } catch (err) {
+      console.error("Failed to generate receipt", err);
     }
   };
 
@@ -460,7 +475,7 @@ function RoomDetail() {
                     <td>{formatCurrency(p.amount)}</td>
                     <td>
                         <button 
-                            onClick={() => generateReceipt(p, room)}
+                            onClick={() => handleGenerateReceipt(p, room)}
                             className="btn btn-secondary"
                             style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
                             title={t('downloadReceipt')}
@@ -690,6 +705,12 @@ function RoomDetail() {
             <p style={{ fontSize: '1.1rem' }}>{successModal.message}</p>
         </div>
       </Modal>
+
+      <PdfPreviewModal 
+        isOpen={isPdfModalOpen} 
+        onClose={() => setIsPdfModalOpen(false)} 
+        pdfData={pdfData} 
+      />
     </div>
   );
 }

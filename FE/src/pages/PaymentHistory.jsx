@@ -3,12 +3,15 @@ import api from '../services/api';
 import XLSX from 'xlsx-js-style';
 import { formatDate, formatCurrency } from '../utils/format';
 import { generateReceipt } from '../utils/receipt';
+import PdfPreviewModal from '../components/PdfPreviewModal';
 import { useLanguage } from '../context/LanguageContext';
 
 function PaymentHistory() {
   const { t } = useLanguage();
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pdfData, setPdfData] = useState(null);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   
   // Pagination State
   const [page, setPage] = useState(1);
@@ -30,6 +33,16 @@ function PaymentHistory() {
   useEffect(() => {
     fetchBuildings();
   }, []);
+
+  const handleGenerateReceipt = async (payment, room) => {
+    try {
+      const data = await generateReceipt(payment, room);
+      setPdfData(data);
+      setIsPdfModalOpen(true);
+    } catch (err) {
+      console.error("Failed to generate receipt", err);
+    }
+  };
 
   useEffect(() => {
     fetchPayments();
@@ -326,7 +339,7 @@ function PaymentHistory() {
                   <td>{formatCurrency(p.amount)}</td>
                   <td>
                       <button 
-                          onClick={() => generateReceipt(p, p)}
+                          onClick={() => handleGenerateReceipt(p, p)}
                           className="btn btn-secondary"
                           style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
                           title="Download Receipt"
@@ -432,6 +445,12 @@ function PaymentHistory() {
         </div>
 
       </div>
+
+      <PdfPreviewModal 
+        isOpen={isPdfModalOpen} 
+        onClose={() => setIsPdfModalOpen(false)} 
+        pdfData={pdfData} 
+      />
     </div>
   );
 }
