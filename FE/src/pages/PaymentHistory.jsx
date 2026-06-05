@@ -1,17 +1,16 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import XLSX from 'xlsx-js-style';
 import { formatDate, formatCurrency } from '../utils/format';
 import { generateReceipt } from '../utils/receipt';
-import PdfPreviewModal from '../components/PdfPreviewModal';
 import { useLanguage } from '../context/LanguageContext';
 
 function PaymentHistory() {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [pdfData, setPdfData] = useState(null);
-  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   
   // Pagination State
   const [page, setPage] = useState(1);
@@ -37,8 +36,7 @@ function PaymentHistory() {
   const handleGenerateReceipt = async (payment, room) => {
     try {
       const data = await generateReceipt(payment, room);
-      setPdfData(data);
-      setIsPdfModalOpen(true);
+      navigate('/preview', { state: { pdfData: data } });
     } catch (err) {
       console.error("Failed to generate receipt", err);
     }
@@ -445,12 +443,6 @@ function PaymentHistory() {
         </div>
 
       </div>
-
-      <PdfPreviewModal 
-        isOpen={isPdfModalOpen} 
-        onClose={() => setIsPdfModalOpen(false)} 
-        pdfData={pdfData} 
-      />
     </div>
   );
 }

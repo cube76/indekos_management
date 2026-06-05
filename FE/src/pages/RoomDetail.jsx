@@ -4,7 +4,6 @@ import api, { API_BASE_URL } from '../services/api';
 import { formatDate, formatCurrency, formatInputPrice, parseInputPrice } from '../utils/format';
 import { generateReceipt, generateInvoice } from '../utils/receipt';
 import Modal from '../components/Modal';
-import PdfPreviewModal from '../components/PdfPreviewModal';
 import { useLanguage } from '../context/LanguageContext';
 
 function RoomDetail() {
@@ -18,8 +17,6 @@ function RoomDetail() {
   // Modal State
   const [modal, setModal] = useState({ isOpen: false, title: '', type: '', data: null });
   const [successModal, setSuccessModal] = useState({ isOpen: false, message: '' });
-  const [pdfData, setPdfData] = useState(null);
-  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
 
   // Payment Form State
   const [amount, setAmount] = useState('');
@@ -192,8 +189,7 @@ function RoomDetail() {
         });
         const generatedInvoice = res.data;
         const data = await generateInvoice(generatedInvoice, room);
-        setPdfData(data);
-        setIsPdfModalOpen(true);
+        navigate('/preview', { state: { pdfData: data } });
     } catch (error) {
         console.error(error);
         alert('Failed to generate invoice: ' + (error.response?.data || error.message));
@@ -205,8 +201,7 @@ function RoomDetail() {
   const handleGenerateReceipt = async (payment, room) => {
     try {
       const data = await generateReceipt(payment, room);
-      setPdfData(data);
-      setIsPdfModalOpen(true);
+      navigate('/preview', { state: { pdfData: data } });
     } catch (err) {
       console.error("Failed to generate receipt", err);
     }
@@ -705,12 +700,6 @@ function RoomDetail() {
             <p style={{ fontSize: '1.1rem' }}>{successModal.message}</p>
         </div>
       </Modal>
-
-      <PdfPreviewModal 
-        isOpen={isPdfModalOpen} 
-        onClose={() => setIsPdfModalOpen(false)} 
-        pdfData={pdfData} 
-      />
     </div>
   );
 }

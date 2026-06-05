@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import RoomDetail from './pages/RoomDetail';
 import PaymentHistory from './pages/PaymentHistory';
 import AdminPanel from './pages/AdminPanel';
+import PdfPreviewPage from './pages/PdfPreviewPage';
 import GlobalLoader from './components/GlobalLoader';
 
 
@@ -98,6 +99,11 @@ function App() {
         <Route path="/admin" element={
           <ProtectedRoute>
              <AdminPanel />
+          </ProtectedRoute>
+        } />
+        <Route path="/preview" element={
+          <ProtectedRoute>
+             <PdfPreviewPage />
           </ProtectedRoute>
         } />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
