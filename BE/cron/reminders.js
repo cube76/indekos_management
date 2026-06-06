@@ -97,11 +97,13 @@ const checkOverdueAndNotify = async (isManual = false) => {
 
             webpush.sendNotification(pushSubscription, messagePayload)
                 .catch(err => {
-                    console.error('Error sending notification to', sub.id, err);
                     if (err.statusCode === 410 || err.statusCode === 404) {
                         // Subscription has expired or is no longer valid
-                        db.query('DELETE FROM push_subscriptions WHERE id = ?', [sub.id]);
+                        db.query('DELETE FROM push_subscriptions WHERE id = ?', [sub.id])
+                            .catch(dbErr => console.error('Error deleting invalid subscription:', sub.id, dbErr));
                         console.log('Deleted invalid subscription:', sub.id);
+                    } else {
+                        console.error('Error sending notification to', sub.id, err);
                     }
                 });
         });
